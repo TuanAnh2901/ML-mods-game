@@ -15,7 +15,6 @@ namespace GalleryUnlocker.MelonLoader
 {
     public class Core : MelonMod
     {
-        private static bool _isUnlocked = false;
         private static string _configPath;
         private static string _imagesPath;
         private static string _imagesPersistentPath;
@@ -23,6 +22,9 @@ namespace GalleryUnlocker.MelonLoader
         private bool _wasPressed = false;
         private bool _configLoaded = false;
         private static bool _initializationComplete = false;
+        private static bool _init1Done = false;
+        private static bool _init2Done = false;
+        private static bool _init3Done = false;
 
         private static List<string> _capturedImages = new List<string>();
         private static List<string> _capturedComics = new List<string>();
@@ -55,11 +57,11 @@ namespace GalleryUnlocker.MelonLoader
                 try
                 {
                     harmony.Patch(AccessTools.Method(imageGalleryType, "initializeImageGalleryVariables1"),
-                        postfix: new HarmonyMethod(typeof(ImageGalleryHooks).GetMethod("InitPostfix")));
+                        postfix: new HarmonyMethod(typeof(ImageGalleryHooks).GetMethod("InitPostfix1")));
                     harmony.Patch(AccessTools.Method(imageGalleryType, "initializeImageGalleryVariables2"),
-                        postfix: new HarmonyMethod(typeof(ImageGalleryHooks).GetMethod("InitPostfix")));
+                        postfix: new HarmonyMethod(typeof(ImageGalleryHooks).GetMethod("InitPostfix2")));
                     harmony.Patch(AccessTools.Method(imageGalleryType, "initializeImageGalleryVariables3"),
-                        postfix: new HarmonyMethod(typeof(ImageGalleryHooks).GetMethod("InitPostfix")));
+                        postfix: new HarmonyMethod(typeof(ImageGalleryHooks).GetMethod("InitPostfix3")));
                     MelonLogger.Msg("Patched init methods");
                 }
                 catch (Exception ex) { MelonLogger.Error($"Error patching init methods: {ex.Message}"); }
@@ -106,14 +108,7 @@ namespace GalleryUnlocker.MelonLoader
                 }
                 else
                 {
-                    _isUnlocked = !_isUnlocked;
-                    MelonLogger.Msg($"=== GalleryUnlock: {_isUnlocked} ===");
-
-                    if (_isUnlocked)
-                        UnlockAll();
-                    else
-                        LockAll();
-
+                    UnlockAll();
                     SaveConfig();
                     MelonLogger.Msg("Restart game to apply changes!");
                 }
@@ -148,18 +143,6 @@ namespace GalleryUnlocker.MelonLoader
             MelonLogger.Msg($"Unlocked {_capturedImages.Count} images and {_capturedComics.Count} comics!");
         }
 
-        private void LockAll()
-        {
-            File.WriteAllText(_imagesPath, "Wall_P1,Wall_P2,Wall_P3,Wall_P4,Wall_P5,");
-            File.WriteAllText(_imagesPersistentPath, "1,");
-
-            SetVariable("UnlockedCS", "");
-            SetVariable("HasSpyAppLizGallery", "false");
-            SetVariable("HasSpyAppMattGallery", "false");
-
-            MelonLogger.Msg("Locked all galleries!");
-        }
-
         private void LoadConfig()
         {
             try
@@ -183,9 +166,7 @@ namespace GalleryUnlocker.MelonLoader
         {
             try
             {
-                var json = _isUnlocked
-                    ? "{\"unlockAllGalleries\":true}"
-                    : "{\"unlockAllGalleries\":false}";
+                var json = "{\"unlockAllGalleries\":true}";
                 File.WriteAllText(_configPath, json);
             }
             catch (Exception ex)
@@ -220,7 +201,30 @@ namespace GalleryUnlocker.MelonLoader
                 string capturedListPath = Path.Combine(Application.persistentDataPath, "captured_images.txt");
                 string allImages = string.Join(",", _capturedImages) + ",";
                 File.WriteAllText(capturedListPath, allImages);
+
+                string capturedComicsPath = Path.Combine(Application.persistentDataPath, "captured_comics.txt");
+                string allComics = string.Join(",", _capturedComics);
+                File.WriteAllText(capturedComicsPath, allComics);
+
+                string allComicsDisplay = "[" + string.Join(",", _capturedComics.Select(c => $"\"{c}\"")) + "]";
+                string displayPath = Path.Combine(Application.persistentDataPath, "captured_comics_display.txt");
+                File.WriteAllText(displayPath, allComicsDisplay);
+
                 MelonLogger.Msg($"Saved captured images to: {capturedListPath}");
+                MelonLogger.Msg($"Saved captured comics to: {capturedComicsPath}");
+                MelonLogger.Msg($"Comics display format: {allComicsDisplay}");
+            }
+        }
+
+        public static void SetInit1Done() { _init1Done = true; CheckAllInitDone(); }
+        public static void SetInit2Done() { _init2Done = true; CheckAllInitDone(); }
+        public static void SetInit3Done() { _init3Done = true; CheckAllInitDone(); }
+
+        private static void CheckAllInitDone()
+        {
+            if (_init1Done && _init2Done && _init3Done && _capturedImages.Count > 0)
+            {
+                SetInitializationComplete();
             }
         }
     }
@@ -237,9 +241,19 @@ namespace GalleryUnlocker.MelonLoader
             Core.CaptureComic(comicName);
         }
 
-        public static void InitPostfix()
+        public static void InitPostfix1()
         {
-            Core.SetInitializationComplete();
+            Core.SetInit1Done();
+        }
+
+        public static void InitPostfix2()
+        {
+            Core.SetInit2Done();
+        }
+
+        public static void InitPostfix3()
+        {
+            Core.SetInit3Done();
         }
     }
 }
