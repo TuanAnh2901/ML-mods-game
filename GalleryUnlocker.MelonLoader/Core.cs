@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Linq;
 using HarmonyLib;
 using MelonLoader;
 using UnityEngine;
@@ -27,9 +28,15 @@ namespace GalleryUnlocker.MelonLoader
         private static bool _init3Done = false;
 
         private static List<string> _capturedImages = new List<string>();
-        private static List<string> _capturedComics = new List<string>();
+        private static List<string> _capturedComicNames = new List<string>();
 
         private static MethodInfo _dialogueLuaSetVariable;
+        private static Type _comicDataManagerType;
+        private static Type _comicEntryType;
+        private static FieldInfo _comicEntriesField;
+        private static MethodInfo _saveComicsDataMethod;
+        private static object _comicDataManagerInstance;
+        private static bool _typesSearched = false;
 
         public override void OnInitializeMelon()
         {
@@ -67,13 +74,21 @@ namespace GalleryUnlocker.MelonLoader
                 catch (Exception ex) { MelonLogger.Error($"Error patching init methods: {ex.Message}"); }
             }
 
+            var comicViewControllerType = AccessTools.TypeByName("ComicViewController");
+            if (comicViewControllerType != null)
+            {
+                try
+                {
+                    harmony.Patch(AccessTools.Method(comicViewControllerType, "ShowComicViewChat"),
+                        prefix: new HarmonyMethod(typeof(ImageGalleryHooks).GetMethod("ShowComicViewChatPrefix")));
+                    MelonLogger.Msg("Patched ShowComicViewChat");
+                }
+                catch (Exception ex) { MelonLogger.Error($"Error patching ShowComicViewChat: {ex.Message}"); }
+            }
+
             _configPath = Path.Combine(Application.persistentDataPath, "gallery_unlock_config.json");
             _imagesPath = Path.Combine(Application.persistentDataPath, "images.txt");
             _imagesPersistentPath = Path.Combine(Application.persistentDataPath, "imagesPersistent.txt");
-
-            MelonLogger.Msg("GalleryUnlocker initialized!");
-            MelonLogger.Msg($"Images path: {_imagesPath}");
-            MelonLogger.Msg("Press '=' to toggle unlock");
 
             try
             {
@@ -86,8 +101,12 @@ namespace GalleryUnlocker.MelonLoader
             }
             catch (Exception ex)
             {
-                MelonLogger.Error($"Error initializing: {ex.Message}");
+                MelonLogger.Error($"Error initializing DialogueLua: {ex.Message}");
             }
+
+            MelonLogger.Msg("GalleryUnlocker initialized!");
+            MelonLogger.Msg($"Images path: {_imagesPath}");
+            MelonLogger.Msg("Press '=' to toggle unlock");
         }
 
         public override void OnUpdate()
@@ -97,6 +116,14 @@ namespace GalleryUnlocker.MelonLoader
                 LoadConfig();
                 _configLoaded = true;
             }
+
+            if (!_typesSearched)
+            {
+                SearchComicTypes();
+                _typesSearched = true;
+            }
+
+            if (Keyboard.current == null) return;
 
             bool isPressed = Keyboard.current.equalsKey.isPressed || Keyboard.current.numpadPlusKey.isPressed;
 
@@ -108,12 +135,53 @@ namespace GalleryUnlocker.MelonLoader
                 }
                 else
                 {
-                    UnlockAll();
+                    UnlockAllComics();
                     SaveConfig();
-                    MelonLogger.Msg("Restart game to apply changes!");
                 }
             }
             _wasPressed = isPressed;
+        }
+
+        private void SearchComicTypes()
+        {
+            _comicDataManagerType = AccessTools.TypeByName("ComicDataManager");
+            _comicEntryType = AccessTools.TypeByName("ComicEntry");
+
+            if (_comicDataManagerType != null)
+            {
+                MelonLogger.Msg($"Found ComicDataManager: {_comicDataManagerType.FullName}");
+                _comicEntriesField = AccessTools.Field(_comicDataManagerType, "comicEntries");
+                _saveComicsDataMethod = AccessTools.Method(_comicDataManagerType, "SaveComicsData");
+                MelonLogger.Msg($"Fields: entries={(_comicEntriesField != null)}, saveMethod={(_saveComicsDataMethod != null)}");
+            }
+            else
+            {
+                MelonLogger.Error("ComicDataManager type not found!");
+            }
+        }
+
+        public static void TryCaptureComicDataManagerInstance(object instanceWithComicDataManager)
+        {
+            if (_comicDataManagerInstance != null) return;
+            if (instanceWithComicDataManager == null) return;
+            if (_comicDataManagerType == null) return;
+
+            try
+            {
+                var field = instanceWithComicDataManager.GetType().GetField("comicDataManager");
+                if (field != null)
+                {
+                    _comicDataManagerInstance = field.GetValue(instanceWithComicDataManager);
+                    if (_comicDataManagerInstance != null)
+                    {
+                        MelonLogger.Msg("Got ComicDataManager instance!");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Error($"Error capturing ComicDataManager: {ex.Message}");
+            }
         }
 
         private void SetVariable(string key, string value)
@@ -128,19 +196,78 @@ namespace GalleryUnlocker.MelonLoader
             }
         }
 
-        private void UnlockAll()
+        private void UnlockAllComics()
         {
-            string allImages = string.Join(",", _capturedImages) + ",";
-            string allComics = string.Join(",", _capturedComics) + ",";
+            MelonLogger.Msg("=== UNLOCK ALL triggered ===");
 
+            // Comics - skip for now
+            //if (_comicDataManagerInstance != null && _comicEntriesField != null)
+            //{
+            //    try
+            //    {
+            //        var comicEntries = _comicEntriesField.GetValue(_comicDataManagerInstance) as IList<object>;
+            //        if (comicEntries != null)
+            //        {
+            //            int addedCount = 0;
+            //            foreach (string comicName in _capturedComicNames)
+            //            {
+            //                bool exists = false;
+            //                foreach (object entry in comicEntries)
+            //                {
+            //                    var nameField = entry.GetType().GetField("comicName");
+            //                    if (nameField != null)
+            //                    {
+            //                        string name = nameField.GetValue(entry) as string;
+            //                        if (name == comicName)
+            //                        {
+            //                            exists = true;
+            //                            break;
+            //                        }
+            //                    }
+            //                }
+            //
+            //                if (!exists)
+            //                {
+            //                    var newEntry = Activator.CreateInstance(_comicEntryType, new object[] { comicName });
+            //                    comicEntries.Add(newEntry);
+            //                    addedCount++;
+            //                    MelonLogger.Msg($"[ADDED COMIC] {comicName}");
+            //                }
+            //            }
+            //
+            //            if (addedCount > 0 && _saveComicsDataMethod != null)
+            //            {
+            //                _saveComicsDataMethod.Invoke(_comicDataManagerInstance, null);
+            //                MelonLogger.Msg($"[SAVED] {addedCount} comics");
+            //            }
+            //        }
+            //        else
+            //        {
+            //            MelonLogger.Error("comicEntries is null!");
+            //        }
+            //    }
+            //    catch (Exception ex)
+            //    {
+            //        MelonLogger.Error($"Error unlocking comics: {ex.Message}");
+            //    }
+            //}
+            //else
+            //{
+            //    string allComicNames = string.Join(",", _capturedComicNames);
+            //    SetVariable("UnlockedCS", allComicNames);
+            //    MelonLogger.Msg($"Set UnlockedCS = {allComicNames}");
+            //}
+
+            string allImages = string.Join(",", _capturedImages) + ",";
             File.WriteAllText(_imagesPath, allImages);
             File.WriteAllText(_imagesPersistentPath, allImages);
+            MelonLogger.Msg($"[UNLOCKED] {_capturedImages.Count} images");
 
-            SetVariable("UnlockedCS", allComics);
             SetVariable("HasSpyAppLizGallery", "true");
             SetVariable("HasSpyAppMattGallery", "true");
 
-            MelonLogger.Msg($"Unlocked {_capturedImages.Count} images and {_capturedComics.Count} comics!");
+            MelonLogger.Msg($"=== UNLOCK COMPLETE: {_capturedImages.Count} images, {_capturedComicNames.Count} comics (comics disabled) ===");
+            MelonLogger.Msg("Restart game to apply changes!");
         }
 
         private void LoadConfig()
@@ -177,7 +304,7 @@ namespace GalleryUnlocker.MelonLoader
 
         public static void CaptureImage(string imageName)
         {
-            if (!string.IsNullOrEmpty(imageName))
+            if (!string.IsNullOrEmpty(imageName) && !_capturedImages.Contains(imageName))
             {
                 _capturedImages.Add(imageName);
                 MelonLogger.Msg($"[IMAGE CAPTURED] {imageName} (total: {_capturedImages.Count})");
@@ -186,49 +313,25 @@ namespace GalleryUnlocker.MelonLoader
 
         public static void CaptureComic(string comicName)
         {
-            if (!string.IsNullOrEmpty(comicName))
+            if (!string.IsNullOrEmpty(comicName) && !_capturedComicNames.Contains(comicName))
             {
-                _capturedComics.Add(comicName);
-                MelonLogger.Msg($"[COMIC CAPTURED] {comicName} (total: {_capturedComics.Count})");
+                _capturedComicNames.Add(comicName);
+                MelonLogger.Msg($"[COMIC CAPTURED] {comicName} (total: {_capturedComicNames.Count})");
             }
         }
 
         public static void SetInitializationComplete()
         {
-            if (!_initializationComplete && _capturedImages.Count > 0)
+            if (_init1Done && _init2Done && _init3Done)
             {
                 _initializationComplete = true;
-                MelonLogger.Msg($"=== Initialization Complete: {_capturedImages.Count} images, {_capturedComics.Count} comics captured ===");
-
-                string capturedListPath = Path.Combine(Application.persistentDataPath, "captured_images.txt");
-                string allImages = string.Join(",", _capturedImages) + ",";
-                File.WriteAllText(capturedListPath, allImages);
-
-                string capturedComicsPath = Path.Combine(Application.persistentDataPath, "captured_comics.txt");
-                string allComics = string.Join(",", _capturedComics);
-                File.WriteAllText(capturedComicsPath, allComics);
-
-                string allComicsDisplay = "[" + string.Join(",", _capturedComics.Select(c => $"\"{c}\"")) + "]";
-                string displayPath = Path.Combine(Application.persistentDataPath, "captured_comics_display.txt");
-                File.WriteAllText(displayPath, allComicsDisplay);
-
-                MelonLogger.Msg($"Saved captured images to: {capturedListPath}");
-                MelonLogger.Msg($"Saved captured comics to: {capturedComicsPath}");
-                MelonLogger.Msg($"Comics display format: {allComicsDisplay}");
+                MelonLogger.Msg($"=== Initialization Complete: {_capturedImages.Count} images, {_capturedComicNames.Count} comics captured ===");
             }
         }
 
-        public static void SetInit1Done() { _init1Done = true; CheckAllInitDone(); }
-        public static void SetInit2Done() { _init2Done = true; CheckAllInitDone(); }
-        public static void SetInit3Done() { _init3Done = true; CheckAllInitDone(); }
-
-        private static void CheckAllInitDone()
-        {
-            if (_init1Done && _init2Done && _init3Done && _capturedImages.Count > 0)
-            {
-                SetInitializationComplete();
-            }
-        }
+        public static void SetInit1Done() { _init1Done = true; SetInitializationComplete(); }
+        public static void SetInit2Done() { _init2Done = true; SetInitializationComplete(); }
+        public static void SetInit3Done() { _init3Done = true; SetInitializationComplete(); }
     }
 
     public static class ImageGalleryHooks
@@ -238,24 +341,48 @@ namespace GalleryUnlocker.MelonLoader
             Core.CaptureImage(imageName);
         }
 
-        public static void AddUnlockComicEntryPrefix(string id, string previewImage, string comicName, bool unlocked, bool hasChoice, int choicesCount)
+        public static void AddUnlockComicEntryPrefix(string id, string previewImage, string comicName, bool unlocked, bool hasChoice, int choicesCount, object __instance = null)
         {
             Core.CaptureComic(comicName);
+            //Core.TryCaptureComicDataManagerInstance(__instance);
         }
 
-        public static void InitPostfix1()
+        public static void InitPostfix1(object __instance = null)
         {
+            MelonLogger.Msg("[INIT1 DONE]");
+            if (__instance != null)
+            {
+                Core.TryCaptureComicDataManagerInstance(__instance);
+            }
             Core.SetInit1Done();
         }
 
-        public static void InitPostfix2()
+        public static void InitPostfix2(object __instance = null)
         {
+            MelonLogger.Msg("[INIT2 DONE]");
+            if (__instance != null)
+            {
+                Core.TryCaptureComicDataManagerInstance(__instance);
+            }
             Core.SetInit2Done();
         }
 
-        public static void InitPostfix3()
+        public static void InitPostfix3(object __instance = null)
         {
+            MelonLogger.Msg("[INIT3 DONE]");
+            if (__instance != null)
+            {
+                Core.TryCaptureComicDataManagerInstance(__instance);
+            }
             Core.SetInit3Done();
+        }
+
+        public static void ShowComicViewChatPrefix(object __instance = null)
+        {
+            if (__instance != null)
+            {
+                Core.TryCaptureComicDataManagerInstance(__instance);
+            }
         }
     }
 }
