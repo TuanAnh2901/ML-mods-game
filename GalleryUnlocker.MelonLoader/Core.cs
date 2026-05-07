@@ -177,17 +177,19 @@ namespace GalleryUnlocker.MelonLoader
 
         public static void CaptureImage(string imageName)
         {
-            if (!string.IsNullOrEmpty(imageName) && !_capturedImages.Contains(imageName))
+            if (!string.IsNullOrEmpty(imageName))
             {
                 _capturedImages.Add(imageName);
+                MelonLogger.Msg($"[IMAGE CAPTURED] {imageName} (total: {_capturedImages.Count})");
             }
         }
 
         public static void CaptureComic(string comicName)
         {
-            if (!string.IsNullOrEmpty(comicName) && !_capturedComics.Contains(comicName))
+            if (!string.IsNullOrEmpty(comicName))
             {
                 _capturedComics.Add(comicName);
+                MelonLogger.Msg($"[COMIC CAPTURED] {comicName} (total: {_capturedComics.Count})");
             }
         }
 
