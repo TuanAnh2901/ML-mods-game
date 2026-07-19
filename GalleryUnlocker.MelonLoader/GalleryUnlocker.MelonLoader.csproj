@@ -6,11 +6,11 @@
         <RootNamespace>GalleryUnlocker.MelonLoader</RootNamespace>
         <LangVersion>latest</LangVersion>
         <IsPackable>false</IsPackable>
-        <AssemblyVersion>1.0.0.0</AssemblyVersion>
-        <FileVersion>1.0.0.0</FileVersion>
+        <AssemblyVersion>1.1.0.0</AssemblyVersion>
+        <FileVersion>1.1.0.0</FileVersion>
         <NeutralLanguage>en-US</NeutralLanguage>
         <AssemblyName>GalleryUnlocker.MelonLoader</AssemblyName>
-        <GamePath>E:\H-Games\NTRMobileV0.23</GamePath>
+        <GamePath>E:\H-Games\NTRMobileV0.24</GamePath>
     </PropertyGroup>
 
     <ItemGroup>
@@ -39,19 +39,19 @@
             <HintPath>$(GamePath)\MelonLoader\net6\Il2CppInterop.Runtime.dll</HintPath>
         </Reference>
         <Reference Include="System.Configuration.ConfigurationManager">
-          <HintPath>E:\H-Games\NTRMobileV0.23\MelonLoader\net6\System.Configuration.ConfigurationManager.dll</HintPath>
+          <HintPath>$(GamePath)\MelonLoader\net6\System.Configuration.ConfigurationManager.dll</HintPath>
         </Reference>
         <Reference Include="System.Diagnostics.DiagnosticSource">
-          <HintPath>E:\H-Games\NTRMobileV0.23\MelonLoader\net6\System.Diagnostics.DiagnosticSource.dll</HintPath>
+          <HintPath>$(GamePath)\MelonLoader\net6\System.Diagnostics.DiagnosticSource.dll</HintPath>
         </Reference>
         <Reference Include="System.Runtime.CompilerServices.Unsafe">
-          <HintPath>E:\H-Games\NTRMobileV0.23\MelonLoader\net6\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+          <HintPath>$(GamePath)\MelonLoader\net6\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
         </Reference>
         <Reference Include="System.Security.Cryptography.ProtectedData">
-          <HintPath>E:\H-Games\NTRMobileV0.23\MelonLoader\net6\System.Security.Cryptography.ProtectedData.dll</HintPath>
+          <HintPath>$(GamePath)\MelonLoader\net6\System.Security.Cryptography.ProtectedData.dll</HintPath>
         </Reference>
         <Reference Include="System.Security.Permissions">
-          <HintPath>E:\H-Games\NTRMobileV0.23\MelonLoader\net6\System.Security.Permissions.dll</HintPath>
+          <HintPath>$(GamePath)\MelonLoader\net6\System.Security.Permissions.dll</HintPath>
         </Reference>
         <Reference Include="UnityEngine">
             <HintPath>$(GamePath)\MelonLoader\Il2CppAssemblies\UnityEngine.dll</HintPath>
