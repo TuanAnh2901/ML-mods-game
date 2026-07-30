@@ -314,7 +314,17 @@ open(response_path, "w").write(json.dumps({{"results": results}}))
 '''
 
 
+def _reject_backup_path(path: Path) -> Path:
+    """Resolve a path only after rejecting backup-tree components."""
+    resolved = path.resolve()
+    if any(part.casefold() in {"before", "tools before"} for part in resolved.parts):
+        raise ValueError("path must not use a backup directory")
+    return resolved
+
+
 def _validated_headless(settings: GhidraSettings) -> Path:
+    _reject_backup_path(settings.ghidra_home)
+    _reject_backup_path(settings.game_assembly)
     executable = settings.ghidra_home / "support" / "analyzeHeadless.bat"
     if not executable.is_file():
         raise ValueError(f"missing Ghidra headless executable: {executable}")
@@ -327,6 +337,11 @@ def extract_targeted(
     resolutions: Sequence[Resolution], settings: GhidraSettings, report_dir: Path
 ) -> dict[str, Any]:
     """Extract only resolved RVAs through a no-analysis Ghidra headless run."""
+    _reject_backup_path(settings.ghidra_home)
+    _reject_backup_path(settings.game_assembly)
+    _reject_backup_path(settings.workspace)
+    _reject_backup_path(settings.cache_dir)
+    _reject_backup_path(report_dir)
     executable = _validated_headless(settings)
     workspace = workspace_path(settings.workspace, settings.workspace)
     report_dir = workspace_path(report_dir, workspace)

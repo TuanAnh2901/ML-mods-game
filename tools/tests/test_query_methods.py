@@ -239,3 +239,28 @@ class GhidraTests(unittest.TestCase):
         )
         self.assertEqual("timeout", manifest["results"][0]["extraction_status"])
         self.assertTrue(self.metadata_file().is_file())
+
+    def test_rejects_backup_game_assembly_before_reading_it(self) -> None:
+        backup_binary = self.root / "Tools Before" / "GameAssembly.dll"
+        with self.assertRaisesRegex(ValueError, "backup directory"):
+            query_methods.extract_targeted(
+                [self.resolved_rva_100()],
+                replace(self.settings(self.make_fake_analyze_headless("code = ''; disassembly = ''")), game_assembly=backup_binary),
+                self.root / "report",
+            )
+
+    def test_rejects_workspace_named_before(self) -> None:
+        with self.assertRaisesRegex(ValueError, "backup directory"):
+            query_methods.extract_targeted(
+                [self.resolved_rva_100()],
+                replace(self.settings(self.make_fake_analyze_headless("code = ''; disassembly = ''")), workspace=self.root / "Before"),
+                self.root / "report",
+            )
+
+    def test_rejects_backup_ghidra_home_before_executable_lookup(self) -> None:
+        with self.assertRaisesRegex(ValueError, "backup directory"):
+            query_methods.extract_targeted(
+                [self.resolved_rva_100()],
+                replace(self.settings(self.make_fake_analyze_headless("code = ''; disassembly = ''")), ghidra_home=self.root / "Before" / "ghidra"),
+                self.root / "report",
+            )
