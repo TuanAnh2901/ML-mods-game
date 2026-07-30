@@ -2,8 +2,10 @@
 """Query and resolve Cpp2IL method-map entries."""
 
 import argparse
+import hashlib
 import json
 import re
+import subprocess
 import sys
 from collections import Counter
 from dataclasses import dataclass
@@ -44,6 +46,16 @@ class Resolution:
     entry: MethodEntry | None
     candidates: tuple[MethodEntry, ...]
     shared_rva_count: int = 0
+
+
+@dataclass(frozen=True)
+class GhidraSettings:
+    ghidra_home: Path
+    game_assembly: Path
+    workspace: Path
+    cache_dir: Path
+    timeout_seconds: int
+    decompile_timeout_seconds: int
 
 
 def parse_rva(value: object) -> tuple[int | None, str]:
@@ -252,6 +264,143 @@ def atomic_write_text(path: Path, content: str) -> None:
     temp.parent.mkdir(parents=True, exist_ok=True)
     temp.write_text(content, encoding="utf-8")
     temp.replace(path)
+
+
+def game_fingerprint(game_assembly: Path) -> str:
+    """Return a stable SHA-256 fingerprint without loading a whole binary at once."""
+    digest = hashlib.sha256()
+    with game_assembly.open("rb") as source:
+        while chunk := source.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _post_script_source(decompile_timeout_seconds: int) -> str:
+    """Create the small, targeted Jython script passed to analyzeHeadless."""
+    return f'''# Targeted method extraction; deliberately does not enable auto-analysis.
+import json
+from ghidra.app.decompiler import DecompInterface
+from ghidra.program.disassemble import Disassembler
+
+request_path = getScriptArgs()[0]
+response_path = getScriptArgs()[1]
+request = json.loads(open(request_path, "r").read())
+decompiler = DecompInterface()
+decompiler.openProgram(currentProgram)
+results = []
+for item in request["methods"]:
+    rva = int(item["rva"])
+    result = {{"rva": rva, "status": "error", "pseudocode": "", "disassembly": "", "error": ""}}
+    try:
+        address = currentProgram.getImageBase().add(rva)
+        function = getFunctionContaining(address)
+        if function is None:
+            Disassembler.getDisassembler(currentProgram, monitor, None).disassemble(address, None)
+            function = createFunction(address, None)
+        if function is None:
+            raise RuntimeError("no function at RVA 0x%X" % rva)
+        decompiled = decompiler.decompileFunction(function, {decompile_timeout_seconds}, monitor)
+        if not decompiled.decompileCompleted():
+            raise RuntimeError(decompiled.getErrorMessage())
+        result["pseudocode"] = str(decompiled.getDecompiledFunction().getC())
+        listing = currentProgram.getListing()
+        instruction = listing.getInstructionAt(address)
+        result["disassembly"] = str(instruction) if instruction else ""
+        result["status"] = "ok"
+    except Exception as error:
+        result["error"] = str(error)
+    results.append(result)
+open(response_path, "w").write(json.dumps({{"results": results}}))
+'''
+
+
+def _validated_headless(settings: GhidraSettings) -> Path:
+    executable = settings.ghidra_home / "support" / "analyzeHeadless.bat"
+    if not executable.is_file():
+        raise ValueError(f"missing Ghidra headless executable: {executable}")
+    if not settings.game_assembly.is_file():
+        raise ValueError(f"missing game assembly: {settings.game_assembly}")
+    return executable
+
+
+def extract_targeted(
+    resolutions: Sequence[Resolution], settings: GhidraSettings, report_dir: Path
+) -> dict[str, Any]:
+    """Extract only resolved RVAs through a no-analysis Ghidra headless run."""
+    executable = _validated_headless(settings)
+    workspace = workspace_path(settings.workspace, settings.workspace)
+    report_dir = workspace_path(report_dir, workspace)
+    cache_dir = workspace_path(settings.cache_dir, workspace)
+    fingerprint = game_fingerprint(settings.game_assembly)
+    script_dir = cache_dir / "ghidra-method-tools" / "scripts"
+    request_path = script_dir / "targeted-request.json"
+    response_path = script_dir / "targeted-response.json"
+    script_path = script_dir / "extract_targeted.py"
+    requested = [
+        resolution for resolution in resolutions
+        if resolution.status == "resolved" and resolution.entry is not None and resolution.entry.rva is not None
+    ]
+    atomic_write_text(script_path, _post_script_source(settings.decompile_timeout_seconds))
+    atomic_write_text(
+        request_path,
+        json.dumps({"methods": [{"rva": item.entry.rva} for item in requested]}) + "\n",
+    )
+    response_path.unlink(missing_ok=True)
+    project_dir = cache_dir / "ghidra-method-tools" / "projects"
+    command = [
+        str(executable), "-project", str(project_dir), "-projectName", fingerprint,
+        "-import", str(settings.game_assembly), "-noanalysis", "-postScript",
+        str(script_path), str(request_path), str(response_path),
+    ]
+    extraction_by_rva: dict[int, dict[str, Any]] = {}
+    run_error = ""
+    timeout = False
+    if requested:
+        try:
+            completed = subprocess.run(
+                command, timeout=settings.timeout_seconds, text=True, capture_output=True, check=False
+            )
+            if completed.returncode:
+                run_error = (completed.stderr or completed.stdout or "analyzeHeadless failed").strip()
+            elif response_path.is_file():
+                response = json.loads(response_path.read_text(encoding="utf-8"))
+                for item in response.get("results", []):
+                    if isinstance(item, dict) and isinstance(item.get("rva"), int):
+                        extraction_by_rva[item["rva"]] = item
+            else:
+                run_error = "analyzeHeadless did not produce a response"
+        except subprocess.TimeoutExpired:
+            timeout = True
+
+    results: list[dict[str, Any]] = []
+    for resolution in resolutions:
+        metadata = _resolution_metadata(resolution)
+        rva = resolution.entry.rva if resolution.entry else None
+        extracted = extraction_by_rva.get(rva) if rva is not None else None
+        if timeout and resolution in requested:
+            metadata.update(extraction_status="timeout", extraction_error="analyzeHeadless timed out")
+        elif extracted is not None:
+            metadata.update(
+                extraction_status=extracted.get("status", "error"),
+                extraction_error=extracted.get("error", ""),
+            )
+            if extracted.get("status") == "ok":
+                slug = method_slug(metadata["type"], metadata["method"], metadata["rva"])
+                atomic_write_text(report_dir / "methods" / slug / "code.c", str(extracted.get("pseudocode", "")))
+                atomic_write_text(report_dir / "methods" / slug / "disassembly.asm", str(extracted.get("disassembly", "")))
+        elif resolution in requested:
+            metadata.update(extraction_status="error", extraction_error=run_error or "missing extraction result")
+        else:
+            metadata.update(extraction_status="not_requested", extraction_error="")
+        results.append(metadata)
+    manifest = {
+        "game_fingerprint": fingerprint,
+        "command": command,
+        "exit_code": 7 if timeout else 0,
+        "results": results,
+    }
+    write_report(report_dir, manifest)
+    return manifest
 
 
 def method_slug(type_name: str, method_name: str, rva_text: str) -> str:

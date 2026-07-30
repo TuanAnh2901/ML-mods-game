@@ -2,6 +2,7 @@ import json
 import tempfile
 import sys
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 import query_methods
@@ -162,3 +163,79 @@ class ReportTests(unittest.TestCase):
         result = self.run_cli()
         self.assertEqual(2, result.returncode)
         self.assertIn("need at least one keyword, --type, --method, or --re", result.stderr)
+
+
+class GhidraTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.root = Path(self.temp_dir.name) / "tools"
+        self.root.mkdir()
+        self.game_assembly = self.root / "GameAssembly.dll"
+        self.game_assembly.write_bytes(b"test game assembly")
+
+    def make_fake_analyze_headless(self, response_expression: str) -> Path:
+        ghidra_home = self.root / "fake-ghidra"
+        support = ghidra_home / "support"
+        support.mkdir(parents=True)
+        runner = support / "fake_headless.py"
+        runner.write_text(
+            "import json, sys\n"
+            "from pathlib import Path\n"
+            "args = sys.argv[1:]\n"
+            "post = args.index('-postScript')\n"
+            "request = json.loads(Path(args[post + 2]).read_text(encoding='utf-8'))\n"
+            f"{response_expression}\n"
+            "Path(args[post + 3]).write_text(json.dumps({'results': [{'rva': item['rva'], 'status': 'ok', 'pseudocode': code, 'disassembly': disassembly, 'error': ''} for item in request['methods']]}), encoding='utf-8')\n",
+            encoding="utf-8",
+        )
+        (support / "analyzeHeadless.bat").write_text(
+            f'@echo off\r\n"{sys.executable}" "{runner}" %*\r\n', encoding="utf-8"
+        )
+        return ghidra_home
+
+    def sleeping_fake(self) -> Path:
+        ghidra_home = self.root / "sleeping-ghidra"
+        support = ghidra_home / "support"
+        support.mkdir(parents=True)
+        (support / "analyzeHeadless.bat").write_text(
+            "@echo off\r\n:loop\r\ngoto loop\r\n", encoding="utf-8"
+        )
+        return ghidra_home
+
+    def settings(self, ghidra_home: Path) -> object:
+        return query_methods.GhidraSettings(
+            ghidra_home=ghidra_home,
+            game_assembly=self.game_assembly,
+            workspace=self.root,
+            cache_dir=self.root / ".cache",
+            timeout_seconds=5,
+            decompile_timeout_seconds=3,
+        )
+
+    def resolved_rva_100(self) -> object:
+        target = query_methods.MethodTarget("Game.Unit", "Apply")
+        return query_methods.Resolution(
+            target, "resolved", entry("Game.Unit", "Apply", "void Apply()", "0x100"), (), 1
+        )
+
+    def code_file(self) -> Path:
+        return self.root / "report" / "methods" / "Game.Unit__Apply__0x100" / "code.c"
+
+    def metadata_file(self) -> Path:
+        return self.root / "report" / "methods" / "Game.Unit__Apply__0x100" / "metadata.json"
+
+    def test_targeted_extraction_uses_noanalysis_and_writes_code(self) -> None:
+        fake = self.make_fake_analyze_headless("code = 'int Apply() { return 1; }'; disassembly = '00000100 RET'")
+        manifest = query_methods.extract_targeted([self.resolved_rva_100()], self.settings(fake), self.root / "report")
+        self.assertIn("-noanalysis", manifest["command"])
+        self.assertEqual("int Apply() { return 1; }", self.code_file().read_text())
+
+    def test_timeout_preserves_metadata(self) -> None:
+        manifest = query_methods.extract_targeted(
+            [self.resolved_rva_100()],
+            replace(self.settings(self.sleeping_fake()), timeout_seconds=1),
+            self.root / "report",
+        )
+        self.assertEqual("timeout", manifest["results"][0]["extraction_status"])
+        self.assertTrue(self.metadata_file().is_file())
