@@ -369,7 +369,9 @@ def _run_extract(args: argparse.Namespace) -> None:
 
 
 def _normalize_argv(argv: Sequence[str]) -> list[str]:
-    if not argv or argv[0] in {"search", "extract", "-h", "--help"}:
+    if not argv:
+        return ["search"]
+    if argv[0] in {"search", "extract", "-h", "--help"}:
         return list(argv)
     return ["search", *argv]
 

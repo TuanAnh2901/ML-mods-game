@@ -157,3 +157,8 @@ class ReportTests(unittest.TestCase):
         result = self.run_cli("Apply", "--json", str(self.map_path))
         self.assertEqual(0, result.returncode)
         self.assertIn("1 hits", result.stdout)
+
+    def test_old_empty_cli_returns_legacy_selector_error(self) -> None:
+        result = self.run_cli()
+        self.assertEqual(2, result.returncode)
+        self.assertIn("need at least one keyword, --type, --method, or --re", result.stderr)

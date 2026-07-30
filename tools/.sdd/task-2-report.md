@@ -31,3 +31,10 @@
 ## Commit
 
 `feat: add config-driven method reports`
+
+## P1 Follow-up: Empty Legacy CLI
+
+- Added a regression test proving that an empty legacy invocation exits with code 2 and retains the selector error text.
+- RED evidence: the new test initially failed because the root CLI printed help and exited 0.
+- Updated argv normalization so an empty argument vector routes to `search`; `search` then emits its established selector error.
+- Verification: `python -m unittest tests.test_query_methods.ReportTests -v` passed (3 tests); `python -m unittest tests.test_query_methods -v` passed (13 tests); `git diff --check` passed.
