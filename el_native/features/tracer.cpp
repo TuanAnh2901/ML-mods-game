@@ -30,7 +30,26 @@ struct StatEntry {
 
 static StatEntry s_stats[256];
 static int s_statCount = 0;
-static bool s_dumped = false;
+static int s_newStatCount = 0; // updated when new stat discovered
+static int s_lastSavedCount = -1;
+static int s_frameCounter = 0;
+
+// Save dump file (auto-called every ~5s + on new stat)
+static void SaveStatDump() {
+    FILE* f = fopen("el_native_stattypes.txt", "w");
+    if (!f) return;
+    fprintf(f, "# StatType dump — %d unique values (%d total calls)\n", s_statCount, s_newStatCount);
+    fprintf(f, "# Type | Count | MinVal | MaxVal | AvgVal | LastSide\n");
+    for (int i = 0; i < s_statCount; i++) {
+        float avg = s_stats[i].sumVal / s_stats[i].count;
+        fprintf(f, "%4d | %6d | %10.2f | %10.2f | %10.2f | side=%d\n",
+            s_stats[i].type, s_stats[i].count,
+            s_stats[i].minVal, s_stats[i].maxVal, avg,
+            s_stats[i].lastSide);
+    }
+    fclose(f);
+    s_lastSavedCount = s_newStatCount;
+}
 
 typedef int32_t(__fastcall* GetArmySide_t)(void* self, void* mi);
 static GetArmySide_t Resolved_GetArmySide2 = nullptr;
@@ -54,6 +73,8 @@ static void RecordStat(int32_t statType, float value, int side) {
         s_stats[s_statCount].count = 1;
         s_stats[s_statCount].lastSide = side;
         s_statCount++;
+        s_newStatCount++;
+        SaveStatDump(); // immediate save on new stat type
     }
 }
 
@@ -102,23 +123,13 @@ void TracerFeature::Init() {
 
 void TracerFeature::OnUpdate() {
     s_dumpStats = enabled && m_dumpStats && Original_GetCurrentValue && Original_GetStatValue;
-    if (!s_dumpStats && !s_dumped && s_statCount > 0) {
-        // Save dump when feature toggled off
-        FILE* f = fopen("el_native_stattypes.txt", "w");
-        if (f) {
-            fprintf(f, "# StatType dump — %d unique values\n", s_statCount);
-            fprintf(f, "# Type | Count | MinVal | MaxVal | AvgVal | LastSide\n");
-            for (int i = 0; i < s_statCount; i++) {
-                float avg = s_stats[i].sumVal / s_stats[i].count;
-                fprintf(f, "%4d | %6d | %10.2f | %10.2f | %10.2f | side=%d\n",
-                    s_stats[i].type, s_stats[i].count,
-                    s_stats[i].minVal, s_stats[i].maxVal, avg,
-                    s_stats[i].lastSide);
-            }
-            fclose(f);
-            LOG("[FEATURE] Tracer: wrote %d stat types to el_native_stattypes.txt", s_statCount);
+    if (s_dumpStats) {
+        s_frameCounter++;
+        // Auto-save every ~5 seconds (300 frames at 60fps) or on new stat
+        if (s_frameCounter >= 300 || s_lastSavedCount != s_newStatCount) {
+            SaveStatDump();
+            s_frameCounter = 0;
         }
-        s_dumped = true;
     }
 }
 
@@ -128,7 +139,7 @@ void TracerFeature::OnMenu() {
         ImGui::TextColored(ImVec4(1, 0, 0, 1), "hook unavailable"); return;
     }
     ImGui::Checkbox("Dump StatType values", &m_dumpStats);
-    ImGui::Text("Unique stats captured: %d", s_statCount);
+    ImGui::Text("Unique stats captured: %d (auto-saves to file)", s_statCount);
     if (s_statCount > 0) {
         ImGui::Separator();
         ImGui::Text("Type | Count | Value range | Side");
@@ -139,8 +150,8 @@ void TracerFeature::OnMenu() {
                 s_stats[i].lastSide);
         }
     }
-    if (!m_dumpStats && s_statCount > 0)
-        ImGui::TextColored(ImVec4(0, 1, 0, 1), "Dump saved to el_native_stattypes.txt");
+    if (m_dumpStats)
+        ImGui::TextColored(ImVec4(0, 1, 0, 1), "Auto-saving to el_native_stattypes.txt");
 }
 
 static TracerFeature g_tracer;
