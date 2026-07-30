@@ -1,0 +1,48 @@
+# ── Build ────────────────────────────────────────────────────────────────
+build/
+*.obj
+*.o
+*.exe
+*.dll
+*.pdb
+*.exp
+*.lib
+*.ilk
+*.log
+
+# ── Python ────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+
+# ── Analysis — binaries & large data ─────────────────────────────────────
+Analysis/Cpp2IL-current/
+Analysis/Cpp2IL-stock/
+Analysis/Cpp2IL-v31-output/
+Analysis/Cpp2IL-v31-reconstructed/
+Analysis/Cpp2IL-method-map/
+Analysis/References/
+Analysis/Ghidra/
+**/References/
+
+# ── Game data ────────────────────────────────────────────────────────────
+*.dat
+*.jsonl
+**/BootstrapCrash*/
+**/MetadataCandidate*/
+**/MetadataHeaderTransform*/
+**/MetadataInitializer*/
+**/MetadataLoader*/
+**/RuntimeInitCandidates/
+**/RuntimeInit/
+**/GameplayEconomy/
+**/Verification/
+
+# ── Frida / traces ─────────────────────────────────────────────────────
+*.jsonl
+
+# ── IDE ──────────────────────────────────────────────────────────────────
+.omo/
+.opencode/
+.codebase-memory/
+imgui.ini

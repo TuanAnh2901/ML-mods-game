@@ -1,0 +1,29 @@
+{
+  "enabled": true,
+  "target_hosts": [
+    "ga.adult-chess.com",
+    "inquiring-client.adult-chess.com"
+  ],
+  "endpoints": {
+    "/gs_api/profile/update": {
+      "method": "POST",
+      "modify_response": true
+    },
+    "/v2/battles/ac/ac_battle": {
+      "method": "POST",
+      "mitmproxy only intercepts responses by default. To modify requests, add request handler.",
+      "modify_response": true
+    }
+  },
+  "resource_overrides": {
+    "gold": 999999,
+    "gems": 999999,
+    "energy": 999,
+    "contribution": 999999,
+    "elixir": 999999,
+    "spin": 999
+  },
+  "block_error_codes": [700, 701, 702, 703],
+  "log_requests": true,
+  "log_responses": false
+}

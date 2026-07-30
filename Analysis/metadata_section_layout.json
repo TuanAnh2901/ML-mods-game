@@ -1,0 +1,25 @@
+{
+  "source": "global-metadata.post-transform.dat",
+  "physical_data_start": "0x00001A20",
+  "physical_data_end": "0x01902FE8",
+  "file_length": "0x019060C4",
+  "section_count": 16,
+  "sections": [
+    {"header_offset_word": "0x000019E4", "physical_start": "0x00001A20", "length": "0x012BAF98"},
+    {"header_offset_word": "0x012BC990", "physical_start": "0x012BC9B8", "length": "0x00012F80"},
+    {"header_offset_word": "0x012CF910", "physical_start": "0x012CF938", "length": "0x0000AF54"},
+    {"header_offset_word": "0x012DA864", "physical_start": "0x012DA88C", "length": "0x0000B4E4"},
+    {"header_offset_word": "0x012E5D54", "physical_start": "0x012E5D70", "length": "0x0012822C"},
+    {"header_offset_word": "0x0140DF80", "physical_start": "0x0140DF9C", "length": "0x000359D8"},
+    {"header_offset_word": "0x01443958", "physical_start": "0x01443974", "length": "0x002B5C08"},
+    {"header_offset_word": "0x016F9560", "physical_start": "0x016F957C", "length": "0x00001A0C"},
+    {"header_offset_word": "0x016FAF78", "physical_start": "0x016FAF88", "length": "0x000029C0"},
+    {"header_offset_word": "0x016FD938", "physical_start": "0x016FD948", "length": "0x00002B00"},
+    {"header_offset_word": "0x01700438", "physical_start": "0x01700448", "length": "0x00000FFC"},
+    {"header_offset_word": "0x01701434", "physical_start": "0x01701444", "length": "0x00157C58"},
+    {"header_offset_word": "0x0185908C", "physical_start": "0x0185909C", "length": "0x00088010"},
+    {"header_offset_word": "0x018E109C", "physical_start": "0x018E10AC", "length": "0x00014364"},
+    {"header_offset_word": "0x018F5400", "physical_start": "0x018F5410", "length": "0x0000DBB8"},
+    {"header_offset_word": "0x01902FB8", "physical_start": "0x01902FC8", "length": "0x00000020"}
+  ]
+}
