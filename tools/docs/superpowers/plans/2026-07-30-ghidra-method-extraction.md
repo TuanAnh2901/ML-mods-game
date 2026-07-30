@@ -12,7 +12,7 @@
 
 - Write only beneath `D:\VSCode\EL_Native\tools`; never access any backup directory such as `Before` or `Tools Before`.
 - Treat game binary and metadata outside the workspace as read-only inputs.
-- Reject report/cache/header output outside this workspace and path components named `before` or `tools before`, case-insensitively.
+- Reject report/cache output outside this workspace and path components named `before` or `tools before`, case-insensitively. Keep the existing default header path `D:\VSCode\EL_Native\el_native\method_fallback.inc` as the sole external write exception; never permit an arbitrary external `--output` path.
 - Metadata mode never launches Ghidra; targeted mode always passes `-noanalysis`; full analysis only runs through a detached `prepare-full` job.
 - Preserve the legacy query CLI and legacy `DESIRED` flow.
 - Use `python -m unittest discover -s tests -v`; no third-party test framework.
@@ -112,7 +112,7 @@ def resolve_target(target: MethodTarget, entries: Sequence[MethodEntry]) -> Reso
     return Resolution(target, "resolved" if candidates[0].rva else "non_decompilable", candidates[0], tuple(candidates), shared)
 ```
 
-Use `Path.resolve()` plus `relative_to(workspace.resolve())` in `workspace_path`; reject `before` and `tools before` components.
+Use `Path.resolve()` plus `relative_to(workspace.resolve())` in `workspace_path`; reject `before` and `tools before` components. Add `header_output_path` which accepts either a workspace-local path or the fixed legacy default `workspace.parent / "el_native" / "method_fallback.inc"` and rejects every other external path.
 
 - [ ] **Step 4: Run GREEN**
 
@@ -327,7 +327,7 @@ Expected: unknown options or arbitrary first candidate behavior.
 
 - [ ] **Step 3: Implement target adapter and safe rendering**
 
-Map each legacy `DESIRED` tuple into `MethodTarget(type_name=d[0], method_name=d[1], assembly=d[2], namespace_override=d[3], argc=d[4], signature_contains=d[5] if len(d) > 5 else None)`. Use config/CLI targets when supplied; otherwise use this adapter. Only render `resolved` rows, sort numeric RVA, validate output with `workspace_path`, and atomically write the unchanged C structure. Return `4` for missing and `5` for ambiguous targets. `--extract-code targeted` delegates to `extract_targeted`; `full` requires a ready job and never starts one.
+Map each legacy `DESIRED` tuple into `MethodTarget(type_name=d[0], method_name=d[1], assembly=d[2], namespace_override=d[3], argc=d[4], signature_contains=d[5] if len(d) > 5 else None)`. Use config/CLI targets when supplied; otherwise use this adapter. Only render `resolved` rows, sort numeric RVA, validate output with `header_output_path`, and atomically write the unchanged C structure. Return `4` for missing and `5` for ambiguous targets. `--extract-code targeted` delegates to `extract_targeted`; `full` requires a ready job and never starts one.
 
 - [ ] **Step 4: Run GREEN and commit**
 

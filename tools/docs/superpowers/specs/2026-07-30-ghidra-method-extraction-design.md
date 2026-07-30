@@ -27,11 +27,12 @@ Không dò tìm, đọc, sửa, chạy test hoặc ghi dữ liệu vào các th�
 như `Before`, `Tools Before` hoặc biến thể tương tự. `GameAssembly` và metadata
 JSON bên ngoài workspace chỉ là input read-only do người dùng truyền rõ ràng.
 
-Các đường dẫn output/cache do người dùng truyền được chuẩn hóa thành đường dẫn
-tuyệt đối và phải nằm bên trong workspace `D:\VSCode\EL_Native\tools`. Công cụ
-từ chối output/cache ra ngoài workspace hoặc nằm trong thư mục có thành phần tên
-biểu thị backup như `before` hay `tools before`; input read-only không chịu giới
-hạn này.
+Các đường dẫn cache/report do người dùng truyền được chuẩn hóa thành đường dẫn
+tuyệt đối và phải nằm bên trong workspace `D:\VSCode\EL_Native\tools`. Header
+được phép giữ riêng output legacy `D:\VSCode\EL_Native\el_native\method_fallback.inc`
+khi không truyền `--output`. Công cụ từ chối output/cache nằm trong thư mục có
+thành phần tên biểu thị backup như `before` hay `tools before`; input read-only
+không chịu giới hạn này.
 
 ## 3. Phương án kiến trúc
 
