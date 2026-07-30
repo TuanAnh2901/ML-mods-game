@@ -180,6 +180,10 @@ DESIRED: list[tuple[Any, ...]] = [
     ("NewAssets.Scripts.UtilScripts.MyUtil",
                                 "ConvertWinningSideToBattleResult",
                                                       "Assembly-CSharp",      None,       2),
+    ("AutoChess.LocalServer.LocalMatchData",
+                                "ApplyBattleResult",  "Assembly-CSharp",      None,       3),
+    ("AutoChess.LocalServer.LocalPhaseController",
+                                ".ctor",              "Assembly-CSharp",      None,       7),
     # AntiCheat bypass — neutralize cheat detectors
     ("CodeStage.AntiCheat.Detectors.ObscuredCheatingDetectorListener",
                                 "TryShowError",       "Assembly-CSharp",      None,       0),

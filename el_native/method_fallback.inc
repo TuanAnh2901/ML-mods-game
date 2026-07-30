@@ -13,7 +13,7 @@ typedef struct {
     uintptr_t rva;
 } MethodFallbackEntry;
 
-static MethodFallbackEntry g_methodFallbackTable[61] = {
+static MethodFallbackEntry g_methodFallbackTable[63] = {
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.CustomTimescale", "IBattleTimescaleProvider", "get_CustomTimescale", 0, 0x0},
     {"Assembly-CSharp", "NewAssets.Scripts.DataClasses", "MonsterStaticData", "get_monsterId", 0, 0x595540},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "SetTimescaleProvider", 1, 0x59BCD0},
@@ -37,6 +37,7 @@ static MethodFallbackEntry g_methodFallbackTable[61] = {
     {"Assembly-CSharp", "", "UserResourcesUtil", "GetResourceName", 1, 0xBCCB00},
     {"Assembly-CSharp", "", "UserResourcesUtil", "GetResourceTypeByString", 1, 0xBCCEB0},
     {"Assembly-CSharp", "", "UserResourcesUtil", "GetStringByResourceType", 1, 0xBCD090},
+    {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchData", "ApplyBattleResult", 3, 0xBE92C0},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "CreateNew", 1, 0xBEE330},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "Dispose", 0, 0xBEE420},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "FixedUpdate", 0, 0xBEE480},
@@ -46,6 +47,7 @@ static MethodFallbackEntry g_methodFallbackTable[61] = {
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalPhaseController", "FinishBattleEarlier", 0, 0xBEF110},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalPhaseController", "FinishBattle", 0, 0xBEF180},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalPhaseController", "StartBattle", 0, 0xBF10A0},
+    {"Assembly-CSharp", "AutoChess.LocalServer", "LocalPhaseController", ".ctor", 7, 0xBF22D0},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalShopController", "AddMonstersToQueue", 2, 0xC13100},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalShopController", "GetSlotPrice", 1, 0xC13520},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalShopController", "RefreshShop", 3, 0xC13B00},
