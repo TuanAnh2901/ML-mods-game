@@ -162,6 +162,10 @@ DESIRED: list[tuple[Any, ...]] = [
                                                        "Assembly-CSharp",      None,       0),
     # Sell price multiplier
     ("MonsterDataUtils",          "GetSellingPrice",    "Assembly-CSharp",      None,       1),
+    ("MonsterDataUtils",          "GetSellingPrice",    "Assembly-CSharp",      None,       2,
+                                 "(System.Int32 monsterId"),
+    ("MonsterDataUtils",          "GetSellingPrice",    "Assembly-CSharp",      None,       5,
+                                 "(System.Int32 grade, NewAssets.Scripts.DataClasses"),
     # Slot price — hook to always return 0
     ("AutoChess.LocalServer.LocalShopController",
                                 "GetSlotPrice",       "Assembly-CSharp",      None,       1),
@@ -172,6 +176,10 @@ DESIRED: list[tuple[Any, ...]] = [
                                 "ChangeMana",         "Assembly-CSharp",      None,       1),
     ("AutoChess.CoreGameplay.Fight.Units.BattleUnit",
                                 "GetTurnInterval",    "Assembly-CSharp",      None,       0),
+    # Battle Result — force win in PvP/tournament/Draft modes
+    ("NewAssets.Scripts.UtilScripts.MyUtil",
+                                "ConvertWinningSideToBattleResult",
+                                                      "Assembly-CSharp",      None,       2),
 ]
 
 

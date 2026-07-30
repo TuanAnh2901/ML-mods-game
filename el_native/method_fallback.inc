@@ -13,7 +13,7 @@ typedef struct {
     uintptr_t rva;
 } MethodFallbackEntry;
 
-static MethodFallbackEntry g_methodFallbackTable[57] = {
+static MethodFallbackEntry g_methodFallbackTable[58] = {
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.CustomTimescale", "IBattleTimescaleProvider", "get_CustomTimescale", 0, 0x0},
     {"Assembly-CSharp", "NewAssets.Scripts.DataClasses", "MonsterStaticData", "get_monsterId", 0, 0x595540},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "SetTimescaleProvider", 1, 0x59BCD0},
@@ -26,6 +26,7 @@ static MethodFallbackEntry g_methodFallbackTable[57] = {
     {"Assembly-CSharp", "", "SM_destroyThisTimed", "Update", 0, 0x6A3C00},
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.CustomTimescale", "ScalableTimescaleProvider", "get_CustomTimescale", 0, 0x6A7A80},
     {"Assembly-CSharp", "Assets.Scripts.UI_Scripts.UIElements", "TapListener", "CheckShowCheatsWindow", 0, 0x712D90},
+    {"Assembly-CSharp", "NewAssets.Scripts.UtilScripts", "MyUtil", "ConvertWinningSideToBattleResult", 2, 0x802DA0},
     {"Assembly-CSharp", "NewAssets.Scripts.Data_Helpers", "MonsterDataHelper", "get_MonstersList", 0, 0x822B70},
     {"Assembly-CSharp", "NewAssets.Scripts.DataClasses.UserData", "Constants", "get_fightCustomTimescale", 0, 0x853BE0},
     {"Assembly-CSharp", "NewAssets.Scripts.DataClasses", "MonsterStaticData", "GetOwnName", 0, 0x8619A0},
