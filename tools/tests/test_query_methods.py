@@ -1,0 +1,108 @@
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+import query_methods
+
+
+def entry(type_name: str, method_name: str, signature: str, rva: str) -> object:
+    number, rva_text = query_methods.parse_rva(rva)
+    return query_methods.MethodEntry(
+        type_name, method_name, signature, number, rva_text, 0, {}
+    )
+
+
+class ResolverTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.root = Path(self.temp_dir.name) / "tools"
+        self.root.mkdir()
+        self.two_overloads = [
+            entry("Game.Unit", "Apply", "void Apply(System.Int32)", "0x100"),
+            entry(
+                "Game.Unit",
+                "Apply",
+                "void Apply(System.String,System.Int32)",
+                "0x200",
+            ),
+        ]
+
+    def write_json(self, value: object) -> Path:
+        path = self.root / "methods.json"
+        path.write_text(json.dumps(value), encoding="utf-8")
+        return path
+
+    def test_arity_selects_the_correct_overload(self) -> None:
+        result = query_methods.resolve_target(
+            query_methods.MethodTarget("Game.Unit", "Apply", argc=2),
+            self.two_overloads,
+        )
+        self.assertEqual("resolved", result.status)
+        self.assertEqual(0x200, result.entry.rva)
+
+    def test_unqualified_overloads_are_ambiguous(self) -> None:
+        result = query_methods.resolve_target(
+            query_methods.MethodTarget("Game.Unit", "Apply"), self.two_overloads
+        )
+        self.assertEqual("ambiguous", result.status)
+
+    def test_resolved_entry_reports_shared_rva_count(self) -> None:
+        result = query_methods.resolve_target(
+            query_methods.MethodTarget("Game.Unit", "Apply", argc=1),
+            [
+                entry("Game.Unit", "Apply", "void Apply(System.Int32)", "0x100"),
+                entry("Game.Other", "M", "void M()", "0x100"),
+            ],
+        )
+        self.assertEqual(2, result.shared_rva_count)
+
+    def test_output_path_rejects_backup_and_external_paths(self) -> None:
+        with self.assertRaises(ValueError):
+            query_methods.workspace_path(
+                self.root.parent / "Tools Before" / "report", self.root
+            )
+        with self.assertRaises(ValueError):
+            query_methods.workspace_path(self.root.parent / "report", self.root)
+
+    def test_parse_target_derives_arity(self) -> None:
+        target = query_methods.parse_target(
+            "Game.Unit::Apply(System.Int32,System.String)"
+        )
+        self.assertEqual(("Game.Unit", "Apply", 2), (target.type_name, target.method_name, target.argc))
+
+    def test_metadata_loader_skips_nameless_entries_with_warning(self) -> None:
+        entries, warnings = query_methods.load_method_entries(
+            self.write_json(
+                [
+                    {"type": "Game.Unit", "method": "M", "rva": "0x10"},
+                    {"rva": "0x20"},
+                ]
+            )
+        )
+        self.assertEqual(1, len(entries))
+        self.assertIn("index 1", warnings[0])
+
+    def test_load_targets_accepts_wrapped_targets_and_rejects_negative_arity(self) -> None:
+        path = self.write_json(
+            {"targets": [{"type": "Game.Unit", "method": "Apply", "argc": 1}]}
+        )
+        self.assertEqual([query_methods.MethodTarget("Game.Unit", "Apply", argc=1)], query_methods.load_targets(path))
+        invalid = self.write_json([{"type": "Game.Unit", "method": "Apply", "argc": -1}])
+        with self.assertRaises(ValueError):
+            query_methods.load_targets(invalid)
+
+    def test_header_output_path_allows_only_workspace_or_legacy_default(self) -> None:
+        self.assertEqual(
+            (self.root / "out.inc").resolve(),
+            query_methods.header_output_path(self.root / "out.inc", self.root),
+        )
+        legacy = self.root.parent / "el_native" / "method_fallback.inc"
+        self.assertEqual(legacy.resolve(), query_methods.header_output_path(legacy, self.root))
+        with self.assertRaises(ValueError):
+            query_methods.header_output_path(self.root.parent / "other.inc", self.root)
+
+
+if __name__ == "__main__":
+    unittest.main()
