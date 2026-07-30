@@ -1,5 +1,6 @@
 import json
 import tempfile
+import subprocess
 import sys
 import unittest
 from dataclasses import replace
@@ -293,6 +294,56 @@ class JobTests(unittest.TestCase):
             timeout_seconds=5,
             decompile_timeout_seconds=3,
         )
+
+
+    def finishing_fake(self, exit_code: int) -> Path:
+        ghidra_home = self.root / f"finishing-ghidra-{exit_code}"
+        support = ghidra_home / "support"
+        support.mkdir(parents=True)
+        (support / "analyzeHeadless.bat").write_text(
+            f"@echo off\r\nexit /b {exit_code}\r\n", encoding="utf-8"
+        )
+        return ghidra_home
+
+    def test_completed_zero_exit_becomes_ready(self) -> None:
+        manifest = query_methods.start_full_analysis(self.settings(self.finishing_fake(0)))
+        job = json.loads(manifest.read_text(encoding="utf-8"))
+        for _ in range(20):
+            job = query_methods.read_job(self.cache_dir, job["fingerprint"])
+            if job["status"] != "running":
+                break
+            import time
+            time.sleep(0.1)
+        self.assertEqual("ready", job["status"])
+        self.assertEqual(0, job["exit_code"])
+
+    def test_completed_nonzero_exit_becomes_failed(self) -> None:
+        manifest = query_methods.start_full_analysis(self.settings(self.finishing_fake(9)))
+        job = json.loads(manifest.read_text(encoding="utf-8"))
+        for _ in range(20):
+            job = query_methods.read_job(self.cache_dir, job["fingerprint"])
+            if job["status"] != "running":
+                break
+            import time
+            time.sleep(0.1)
+        self.assertEqual("failed", job["status"])
+        self.assertEqual(9, job["exit_code"])
+
+    def test_status_rejects_backup_cache_path_before_reading_job(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(Path(query_methods.__file__).resolve()), "status", "missing", "--cache-dir", str(self.root / "Before" / ".cache")],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(2, result.returncode)
+        self.assertIn("backup directory", result.stderr)
+
+    def test_cancel_rejects_backup_cache_path_before_reading_job(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(Path(query_methods.__file__).resolve()), "cancel", "missing", "--cache-dir", str(self.root / "Before" / ".cache")],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(2, result.returncode)
+        self.assertIn("backup directory", result.stderr)
 
     def test_prepare_returns_immediately_and_records_running_job(self) -> None:
         import time

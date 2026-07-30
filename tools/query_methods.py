@@ -2,6 +2,8 @@
 """Query and resolve Cpp2IL method-map entries."""
 
 import argparse
+import ctypes
+import ctypes.wintypes
 import hashlib
 import json
 import os
@@ -559,6 +561,36 @@ def _write_job_manifest(path: Path, job: dict[str, Any]) -> None:
     atomic_write_text(path, json.dumps(job, indent=2, sort_keys=True) + "\n")
 
 
+def _process_start_token(pid: object) -> str | None:
+    """Return a process-creation token suitable for detecting PID reuse."""
+    if not isinstance(pid, int) or pid <= 0:
+        return None
+    if sys.platform == "win32":
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x0400, False, pid)
+        if not handle:
+            return None
+        try:
+            created = ctypes.wintypes.FILETIME()
+            exited = ctypes.wintypes.FILETIME()
+            kernel = ctypes.wintypes.FILETIME()
+            user = ctypes.wintypes.FILETIME()
+            if not kernel32.GetProcessTimes(handle, ctypes.byref(created), ctypes.byref(exited), ctypes.byref(kernel), ctypes.byref(user)):
+                return None
+            return str((created.dwHighDateTime << 32) | created.dwLowDateTime)
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+        return stat.rsplit(")", 1)[1].split()[19]
+    except (OSError, IndexError):
+        return None
+
+
+def _matches_process_identity(job: dict[str, Any]) -> bool:
+    return _process_start_token(job.get("pid")) == job.get("process_start_token")
+
+
 def _process_is_live(pid: object) -> bool:
     if not isinstance(pid, int) or pid <= 0:
         return False
@@ -601,6 +633,7 @@ def refresh_job_status(job: dict[str, Any]) -> dict[str, Any]:
 
 def read_job(cache_dir: Path, fingerprint: str) -> dict[str, Any]:
     """Read and refresh the persisted full-analysis job manifest."""
+    cache_dir = _reject_backup_path(cache_dir)
     manifest_path = _job_manifest_path(cache_dir, fingerprint)
     job = json.loads(manifest_path.read_text(encoding="utf-8"))
     return refresh_job_status(job)
@@ -642,11 +675,11 @@ def start_full_analysis(settings: GhidraSettings) -> Path:
     log_path = job_dir / "analysis.log"
     exit_code_path = job_dir / "exit-code.txt"
     exit_code_path.unlink(missing_ok=True)
-    shell_command = f"{subprocess.list2cmdline(command)} & echo %ERRORLEVEL% > {subprocess.list2cmdline([str(exit_code_path)])}"
+    shell_command = f"{subprocess.list2cmdline(command)} & echo !ERRORLEVEL! > {subprocess.list2cmdline([str(exit_code_path)])}"
     try:
         with log_path.open("ab") as log_file:
             process = subprocess.Popen(
-                ["cmd.exe", "/d", "/s", "/c", shell_command], stdout=log_file, stderr=log_file,
+                ["cmd.exe", "/d", "/v:on", "/s", "/c", shell_command], stdout=log_file, stderr=log_file,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
     except Exception:
@@ -656,7 +689,8 @@ def start_full_analysis(settings: GhidraSettings) -> Path:
     now = time.time()
     job = {
         "fingerprint": fingerprint, "pid": process.pid, "command": command,
-        "launch_command": ["cmd.exe", "/d", "/s", "/c", shell_command],
+        "launch_command": ["cmd.exe", "/d", "/v:on", "/s", "/c", shell_command],
+        "process_start_token": _process_start_token(process.pid),
         "created_at": now, "started_at": now, "updated_at": now,
         "status": "running", "exit_code": None, "log_path": str(log_path),
         "exit_code_path": str(exit_code_path), "manifest_path": str(manifest_path),
@@ -669,7 +703,7 @@ def start_full_analysis(settings: GhidraSettings) -> Path:
 def cancel_job(cache_dir: Path, fingerprint: str) -> dict[str, Any]:
     """Terminate a full-analysis process and preserve its cancelled manifest."""
     job = read_job(cache_dir, fingerprint)
-    if job.get("status") not in {"ready", "failed", "cancelled"} and isinstance(job.get("pid"), int):
+    if job.get("status") not in {"ready", "failed", "cancelled"} and _matches_process_identity(job):
         if sys.platform == "win32":
             subprocess.run(["taskkill", "/PID", str(job["pid"]), "/T", "/F"], capture_output=True, check=False)
         else:
