@@ -1,9 +1,6 @@
 #pragma once
 #include "../feature.h"
 
-// Hooks in-match shop economy:
-// - SetRefreshPrice / UpdateSlotPrice → free reroll & slots
-// - MonsterDataUtils::GetSellingPrice → sell price multiplier
 struct BattleShopFeature : Feature {
     BattleShopFeature();
     void Init() override;
@@ -13,4 +10,10 @@ struct BattleShopFeature : Feature {
     bool m_freeRefresh = false;
     bool m_freeSlots = false;
     float m_sellMult = 1.0f;
+
+    // PVP additions
+    bool m_pvpFreeRefresh = false;
+    bool m_pvpFreeSlots = false;
+    bool m_pvpExtraSlots = false;
+    bool m_pvpForceWinCoins = false;
 };

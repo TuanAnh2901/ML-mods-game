@@ -193,6 +193,15 @@ DESIRED: list[tuple[Any, ...]] = [
     ("QuestScripts.QuestSaveData",
                                 "get_sufficientProgress",
                                                       "Assembly-CSharp",      None,       0),
+    # PVP Battle Shop — coin/slot fixes for all modes
+    ("AutoChess.CoreGameplay.Participant.ServerParticipant",
+                                "AddSlot",            "Assembly-CSharp",      None,       0),
+    ("AutoChess.CoreGameplay.Participant.ServerPlayerParticipantController",
+                                "AddCoinsAfterBattle",
+                                                      "Assembly-CSharp",      None,       2),
+    ("AutoChess.LocalServer.LocalServerEmulator",
+                                "InvokeOnSlotsPriceUpdate",
+                                                      "Assembly-CSharp",      None,       3),
 ]
 
 

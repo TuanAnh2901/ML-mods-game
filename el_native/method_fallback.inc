@@ -13,7 +13,7 @@ typedef struct {
     uintptr_t rva;
 } MethodFallbackEntry;
 
-static MethodFallbackEntry g_methodFallbackTable[63] = {
+static MethodFallbackEntry g_methodFallbackTable[66] = {
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.CustomTimescale", "IBattleTimescaleProvider", "get_CustomTimescale", 0, 0x0},
     {"Assembly-CSharp", "NewAssets.Scripts.DataClasses", "MonsterStaticData", "get_monsterId", 0, 0x595540},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "SetTimescaleProvider", 1, 0x59BCD0},
@@ -48,6 +48,7 @@ static MethodFallbackEntry g_methodFallbackTable[63] = {
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalPhaseController", "FinishBattle", 0, 0xBEF180},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalPhaseController", "StartBattle", 0, 0xBF10A0},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalPhaseController", ".ctor", 7, 0xBF22D0},
+    {"Assembly-CSharp", "AutoChess.LocalServer", "LocalServerEmulator", "InvokeOnSlotsPriceUpdate", 3, 0xC0EB30},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalShopController", "AddMonstersToQueue", 2, 0xC13100},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalShopController", "GetSlotPrice", 1, 0xC13520},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalShopController", "RefreshShop", 3, 0xC13B00},
@@ -62,6 +63,8 @@ static MethodFallbackEntry g_methodFallbackTable[63] = {
     {"Assembly-CSharp", "AutoChess.DataClasses.UserData.UserDataBits", "ResourceBit", "ChangeResource", 2, 0xDF79E0},
     {"Assembly-CSharp", "AutoChess.DataClasses.UserData.UserDataBits", "ResourceBit", "GetResource", 1, 0xDF7EB0},
     {"Assembly-CSharp", "AutoChess.DataClasses.UserData.UserDataBits", "ResourceBit", "SetResource", 2, 0xDF83B0},
+    {"Assembly-CSharp", "AutoChess.CoreGameplay.Participant", "ServerParticipant", "AddSlot", 0, 0xE15AB0},
+    {"Assembly-CSharp", "AutoChess.CoreGameplay.Participant", "ServerPlayerParticipantController", "AddCoinsAfterBattle", 2, 0xE1C580},
     {"Assembly-CSharp", "QuestScripts", "QuestSaveData", "get_sufficientProgress", 0, 0xE3FD90},
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "ApplyDamage", 5, 0xE4A660},
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "ChangeMana", 1, 0xE4C130},
