@@ -177,7 +177,7 @@ class GhidraTests(unittest.TestCase):
     def make_fake_analyze_headless(self, response_expression: str) -> Path:
         ghidra_home = self.root / "fake-ghidra"
         support = ghidra_home / "support"
-        support.mkdir(parents=True)
+        support.mkdir(parents=True, exist_ok=True)
         runner = support / "fake_headless.py"
         runner.write_text(
             "import json, sys\n"
@@ -197,7 +197,7 @@ class GhidraTests(unittest.TestCase):
     def sleeping_fake(self) -> Path:
         ghidra_home = self.root / "sleeping-ghidra"
         support = ghidra_home / "support"
-        support.mkdir(parents=True)
+        support.mkdir(parents=True, exist_ok=True)
         (support / "analyzeHeadless.bat").write_text(
             "@echo off\r\n:loop\r\ngoto loop\r\n", encoding="utf-8"
         )
@@ -264,3 +264,53 @@ class GhidraTests(unittest.TestCase):
                 replace(self.settings(self.make_fake_analyze_headless("code = ''; disassembly = ''")), ghidra_home=self.root / "Before" / "ghidra"),
                 self.root / "report",
             )
+
+class JobTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.root = Path(self.temp_dir.name) / "tools"
+        self.root.mkdir()
+        self.cache_dir = self.root / ".cache"
+        self.game_assembly = self.root / "GameAssembly.dll"
+        self.game_assembly.write_bytes(b"test game assembly")
+
+    def sleeping_fake(self) -> Path:
+        ghidra_home = self.root / "sleeping-ghidra"
+        support = ghidra_home / "support"
+        support.mkdir(parents=True, exist_ok=True)
+        (support / "analyzeHeadless.bat").write_text(
+            "@echo off\r\n:loop\r\ngoto loop\r\n", encoding="utf-8"
+        )
+        return ghidra_home
+
+    def settings(self, ghidra_home: Path) -> query_methods.GhidraSettings:
+        return query_methods.GhidraSettings(
+            ghidra_home=ghidra_home,
+            game_assembly=self.game_assembly,
+            workspace=self.root,
+            cache_dir=self.cache_dir,
+            timeout_seconds=5,
+            decompile_timeout_seconds=3,
+        )
+
+    def test_prepare_returns_immediately_and_records_running_job(self) -> None:
+        import time
+        began = time.monotonic()
+        manifest = query_methods.start_full_analysis(self.settings(self.sleeping_fake()))
+        self.assertLess(time.monotonic() - began, 2)
+        self.assertEqual("running", json.loads(manifest.read_text(encoding="utf-8"))["status"])
+        job = json.loads(manifest.read_text(encoding="utf-8"))
+        query_methods.cancel_job(self.cache_dir, job["fingerprint"])
+
+    def test_cancel_marks_job_cancelled(self) -> None:
+        manifest = query_methods.start_full_analysis(self.settings(self.sleeping_fake()))
+        job = json.loads(manifest.read_text(encoding="utf-8"))
+        self.assertEqual("cancelled", query_methods.cancel_job(self.cache_dir, job["fingerprint"])["status"])
+
+    def test_live_lock_prevents_second_full_analysis(self) -> None:
+        query_methods.start_full_analysis(self.settings(self.sleeping_fake()))
+        with self.assertRaises(query_methods.JobConflictError):
+            query_methods.start_full_analysis(self.settings(self.sleeping_fake()))
+        job = json.loads(next((self.cache_dir / 'ghidra-method-tools' / 'jobs').glob('*/manifest.json')).read_text(encoding='utf-8'))
+        query_methods.cancel_job(self.cache_dir, job['fingerprint'])

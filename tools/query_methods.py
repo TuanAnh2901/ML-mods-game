@@ -4,6 +4,9 @@
 import argparse
 import hashlib
 import json
+import os
+import signal
+import time
 import re
 import subprocess
 import sys
@@ -532,10 +535,194 @@ def _run_extract(args: argparse.Namespace) -> None:
     print(f"wrote report: {report_dir}")
 
 
+_RUNNING_PROCESSES: list[subprocess.Popen[Any]] = []
+
+
+class JobConflictError(RuntimeError):
+    """Raised when a full-analysis job is already active for an assembly."""
+
+
+def _job_dir(cache_dir: Path, fingerprint: str) -> Path:
+    return cache_dir / "ghidra-method-tools" / "jobs" / fingerprint
+
+
+def _job_manifest_path(cache_dir: Path, fingerprint: str) -> Path:
+    return _job_dir(cache_dir, fingerprint) / "manifest.json"
+
+
+def _job_lock_path(cache_dir: Path, fingerprint: str) -> Path:
+    return _job_dir(cache_dir, fingerprint) / "lock.json"
+
+
+def _write_job_manifest(path: Path, job: dict[str, Any]) -> None:
+    job["updated_at"] = time.time()
+    atomic_write_text(path, json.dumps(job, indent=2, sort_keys=True) + "\n")
+
+
+def _process_is_live(pid: object) -> bool:
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    if sys.platform == "win32":
+        result = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+            capture_output=True, text=True, check=False,
+        )
+        return str(pid) in result.stdout
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def refresh_job_status(job: dict[str, Any]) -> dict[str, Any]:
+    """Update a job manifest in place from its PID, exit marker, and log age."""
+    status = str(job.get("status", ""))
+    if status in {"ready", "failed", "cancelled"}:
+        return job
+    manifest_path = Path(str(job["manifest_path"]))
+    log_path = Path(str(job["log_path"]))
+    live = _process_is_live(job.get("pid"))
+    if not live:
+        exit_path = Path(str(job.get("exit_code_path", "")))
+        try:
+            exit_code = int(exit_path.read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            exit_code = 1
+        job["exit_code"] = exit_code
+        job["status"] = "ready" if exit_code == 0 else "failed"
+        _write_job_manifest(manifest_path, job)
+        _job_lock_path(Path(str(job["cache_dir"])), str(job["fingerprint"])).unlink(missing_ok=True)
+    elif status == "running" and time.time() - log_path.stat().st_mtime > 15 * 60:
+        job["status"] = "stale"
+        _write_job_manifest(manifest_path, job)
+    return job
+
+
+def read_job(cache_dir: Path, fingerprint: str) -> dict[str, Any]:
+    """Read and refresh the persisted full-analysis job manifest."""
+    manifest_path = _job_manifest_path(cache_dir, fingerprint)
+    job = json.loads(manifest_path.read_text(encoding="utf-8"))
+    return refresh_job_status(job)
+
+
+def start_full_analysis(settings: GhidraSettings) -> Path:
+    """Launch a detached, cached full Ghidra analysis and return its manifest path."""
+    _reject_backup_path(settings.ghidra_home)
+    _reject_backup_path(settings.game_assembly)
+    _reject_backup_path(settings.workspace)
+    _reject_backup_path(settings.cache_dir)
+    executable = _validated_headless(settings)
+    workspace = workspace_path(settings.workspace, settings.workspace)
+    cache_dir = workspace_path(settings.cache_dir, workspace)
+    fingerprint = game_fingerprint(settings.game_assembly)
+    job_dir = _job_dir(cache_dir, fingerprint)
+    manifest_path = _job_manifest_path(cache_dir, fingerprint)
+    lock_path = _job_lock_path(cache_dir, fingerprint)
+    job_dir.mkdir(parents=True, exist_ok=True)
+    if lock_path.exists():
+        try:
+            existing = read_job(cache_dir, fingerprint)
+        except (OSError, json.JSONDecodeError, KeyError):
+            existing = {"status": "running"}
+        if existing.get("status") in {"running", "stale"}:
+            raise JobConflictError(f"full analysis already active for {fingerprint}")
+        lock_path.unlink(missing_ok=True)
+    try:
+        descriptor = os.open(lock_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+    except FileExistsError as error:
+        raise JobConflictError(f"full analysis already active for {fingerprint}") from error
+    with os.fdopen(descriptor, "w", encoding="utf-8") as lock_file:
+        json.dump({"fingerprint": fingerprint, "created_at": time.time()}, lock_file)
+    project_dir = cache_dir / "ghidra-method-tools" / "projects"
+    command = [
+        str(executable), "-project", str(project_dir), "-projectName", fingerprint,
+        "-import", str(settings.game_assembly),
+    ]
+    log_path = job_dir / "analysis.log"
+    exit_code_path = job_dir / "exit-code.txt"
+    exit_code_path.unlink(missing_ok=True)
+    shell_command = f"{subprocess.list2cmdline(command)} & echo %ERRORLEVEL% > {subprocess.list2cmdline([str(exit_code_path)])}"
+    try:
+        with log_path.open("ab") as log_file:
+            process = subprocess.Popen(
+                ["cmd.exe", "/d", "/s", "/c", shell_command], stdout=log_file, stderr=log_file,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+    except Exception:
+        lock_path.unlink(missing_ok=True)
+        raise
+    _RUNNING_PROCESSES.append(process)
+    now = time.time()
+    job = {
+        "fingerprint": fingerprint, "pid": process.pid, "command": command,
+        "launch_command": ["cmd.exe", "/d", "/s", "/c", shell_command],
+        "created_at": now, "started_at": now, "updated_at": now,
+        "status": "running", "exit_code": None, "log_path": str(log_path),
+        "exit_code_path": str(exit_code_path), "manifest_path": str(manifest_path),
+        "cache_dir": str(cache_dir),
+    }
+    _write_job_manifest(manifest_path, job)
+    return manifest_path
+
+
+def cancel_job(cache_dir: Path, fingerprint: str) -> dict[str, Any]:
+    """Terminate a full-analysis process and preserve its cancelled manifest."""
+    job = read_job(cache_dir, fingerprint)
+    if job.get("status") not in {"ready", "failed", "cancelled"} and isinstance(job.get("pid"), int):
+        if sys.platform == "win32":
+            subprocess.run(["taskkill", "/PID", str(job["pid"]), "/T", "/F"], capture_output=True, check=False)
+        else:
+            os.kill(job["pid"], signal.SIGTERM)
+    for process in list(_RUNNING_PROCESSES):
+        if process.pid == job.get("pid"):
+            try:
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                pass
+            _RUNNING_PROCESSES.remove(process)
+    job["status"] = "cancelled"
+    _write_job_manifest(_job_manifest_path(cache_dir, fingerprint), job)
+    _job_lock_path(cache_dir, fingerprint).unlink(missing_ok=True)
+    return job
+
+
+def _add_full_analysis_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--ghidra-home", required=True)
+    parser.add_argument("--game-assembly", required=True)
+    parser.add_argument("--workspace", default=str(Path.cwd()))
+    parser.add_argument("--cache-dir", default=".cache")
+    parser.add_argument("--timeout-seconds", type=int, default=3600)
+    parser.add_argument("--decompile-timeout-seconds", type=int, default=60)
+
+
+def _settings_from_args(args: argparse.Namespace) -> GhidraSettings:
+    workspace = Path(args.workspace)
+    cache_dir = Path(args.cache_dir)
+    if not cache_dir.is_absolute():
+        cache_dir = workspace / cache_dir
+    return GhidraSettings(
+        ghidra_home=Path(args.ghidra_home), game_assembly=Path(args.game_assembly),
+        workspace=workspace, cache_dir=cache_dir, timeout_seconds=args.timeout_seconds,
+        decompile_timeout_seconds=args.decompile_timeout_seconds,
+    )
+
+
+def _run_prepare_full(args: argparse.Namespace) -> None:
+    print(start_full_analysis(_settings_from_args(args)))
+
+
+def _run_job_status(args: argparse.Namespace) -> None:
+    print(json.dumps(read_job(Path(args.cache_dir), args.fingerprint), indent=2, sort_keys=True))
+
+
+def _run_cancel_job(args: argparse.Namespace) -> None:
+    print(json.dumps(cancel_job(Path(args.cache_dir), args.fingerprint), indent=2, sort_keys=True))
+
 def _normalize_argv(argv: Sequence[str]) -> list[str]:
     if not argv:
         return ["search"]
-    if argv[0] in {"search", "extract", "-h", "--help"}:
+    if argv[0] in {"search", "extract", "prepare-full", "status", "cancel", "-h", "--help"}:
         return list(argv)
     return ["search", *argv]
 
@@ -551,14 +738,31 @@ def main(argv: Sequence[str] | None = None) -> None:
     extract_parser.add_argument("--json", default=str(DEFAULT_JSON))
     extract_parser.add_argument("--report-dir", default="reports")
     extract_parser.add_argument("--workspace", default=str(Path.cwd()))
+    prepare_parser = subparsers.add_parser("prepare-full", help="launch detached full Ghidra analysis")
+    _add_full_analysis_arguments(prepare_parser)
+    status_parser = subparsers.add_parser("status", help="read a detached full-analysis job")
+    status_parser.add_argument("fingerprint")
+    status_parser.add_argument("--cache-dir", default=".cache")
+    cancel_parser = subparsers.add_parser("cancel", help="cancel a detached full-analysis job")
+    cancel_parser.add_argument("fingerprint")
+    cancel_parser.add_argument("--cache-dir", default=".cache")
     args = ap.parse_args(_normalize_argv(list(sys.argv[1:] if argv is None else argv)))
     try:
         if args.command == "search":
             _run_search(args)
         elif args.command == "extract":
             _run_extract(args)
+        elif args.command == "prepare-full":
+            _run_prepare_full(args)
+        elif args.command == "status":
+            _run_job_status(args)
+        elif args.command == "cancel":
+            _run_cancel_job(args)
         else:
             ap.print_help()
+    except JobConflictError as error:
+        print(str(error), file=sys.stderr)
+        raise SystemExit(8) from error
     except ValueError as error:
         ap.error(str(error))
 
