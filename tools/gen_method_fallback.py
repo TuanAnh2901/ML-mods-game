@@ -167,6 +167,11 @@ DESIRED: list[tuple[Any, ...]] = [
                                 "GetSlotPrice",       "Assembly-CSharp",      None,       1),
     # Debug.Log capture for cheat console output
     ("UnityEngine.Debug",         "Log",                "UnityEngine.CoreModule",None,     1),
+    # Energy/Attack Speed — multiply mana gain and reduce turn interval
+    ("AutoChess.CoreGameplay.Fight.Units.BattleUnit",
+                                "ChangeMana",         "Assembly-CSharp",      None,       1),
+    ("AutoChess.CoreGameplay.Fight.Units.BattleUnit",
+                                "GetTurnInterval",    "Assembly-CSharp",      None,       0),
 ]
 
 

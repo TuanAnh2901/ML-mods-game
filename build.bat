@@ -101,6 +101,12 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
+"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_energy_attack_speed.obj el_native\features\energy_attack_speed.cpp /I minhook\include /I third_party\imgui
+if %ERRORLEVEL% neq 0 (
+    echo energy_attack_speed.cpp COMPILE FAILED
+    exit /b 1
+)
+
 echo === Building ImGui ===
 set IMGUI=third_party\imgui
 "%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\imgui.obj %IMGUI%\imgui.cpp /I %IMGUI%
@@ -119,7 +125,7 @@ if %ERRORLEVEL% neq 0 ( echo imgui_impl_win32.cpp FAILED & exit /b 1 )
 "%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /Fe:%BLD%\el_native.dll el_native\dllmain.cpp ^
     minhook\src\buffer.c minhook\src\hook.c minhook\src\trampoline.c minhook\src\hde\hde64.c ^
     %BLD%\el_hook.obj %BLD%\el_render.obj %BLD%\el_resolve.obj %BLD%\el_feature.obj %BLD%\el_game_speed.obj %BLD%\el_currency.obj %BLD%\el_resource_dump.obj ^
-    %BLD%\el_damage.obj %BLD%\el_netlog.obj %BLD%\el_gacha.obj %BLD%\el_cheat_tester.obj %BLD%\el_monster_dump.obj %BLD%\el_battle_shop.obj ^
+    %BLD%\el_damage.obj %BLD%\el_netlog.obj %BLD%\el_gacha.obj %BLD%\el_cheat_tester.obj %BLD%\el_monster_dump.obj %BLD%\el_battle_shop.obj %BLD%\el_energy_attack_speed.obj ^
     %BLD%\imgui.obj %BLD%\imgui_draw.obj %BLD%\imgui_tables.obj %BLD%\imgui_widgets.obj ^
     %BLD%\imgui_impl_dx11.obj %BLD%\imgui_impl_win32.obj ^
     /I minhook\include /I minhook\src /I minhook\src\hde /I %IMGUI% /link /DLL /SUBSYSTEM:WINDOWS d3d11.lib dxgi.lib
