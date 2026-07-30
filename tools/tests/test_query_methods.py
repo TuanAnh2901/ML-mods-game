@@ -8,6 +8,8 @@ from pathlib import Path
 
 import query_methods
 
+ROOT = Path(__file__).resolve().parents[1]
+
 
 def entry(type_name: str, method_name: str, signature: str, rva: str) -> object:
     number, rva_text = query_methods.parse_rva(rva)
@@ -164,6 +166,13 @@ class ReportTests(unittest.TestCase):
         result = self.run_cli()
         self.assertEqual(2, result.returncode)
         self.assertIn("need at least one keyword, --type, --method, or --re", result.stderr)
+
+
+class DocumentationTests(unittest.TestCase):
+    def test_guide_covers_targeted_and_manual_recovery(self) -> None:
+        guide = (ROOT / "GHIDRA_METHOD_EXTRACTION_GUIDE.md").read_text(encoding="utf-8")
+        for text in ["image base", "RVA", "-noanalysis", "Decompiler", "shared RVA", "prepare-full", "status --follow"]:
+            self.assertIn(text, guide)
 
 
 class GhidraTests(unittest.TestCase):
