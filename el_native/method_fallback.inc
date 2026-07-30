@@ -13,7 +13,7 @@ typedef struct {
     uintptr_t rva;
 } MethodFallbackEntry;
 
-static MethodFallbackEntry g_methodFallbackTable[58] = {
+static MethodFallbackEntry g_methodFallbackTable[61] = {
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.CustomTimescale", "IBattleTimescaleProvider", "get_CustomTimescale", 0, 0x0},
     {"Assembly-CSharp", "NewAssets.Scripts.DataClasses", "MonsterStaticData", "get_monsterId", 0, 0x595540},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "SetTimescaleProvider", 1, 0x59BCD0},
@@ -30,6 +30,8 @@ static MethodFallbackEntry g_methodFallbackTable[58] = {
     {"Assembly-CSharp", "NewAssets.Scripts.Data_Helpers", "MonsterDataHelper", "get_MonstersList", 0, 0x822B70},
     {"Assembly-CSharp", "NewAssets.Scripts.DataClasses.UserData", "Constants", "get_fightCustomTimescale", 0, 0x853BE0},
     {"Assembly-CSharp", "NewAssets.Scripts.DataClasses", "MonsterStaticData", "GetOwnName", 0, 0x8619A0},
+    {"Assembly-CSharp", "CodeStage.AntiCheat.Detectors", "DetectorListenerWithNetworkWindow", "OnCheatingDetected", 0, 0x9BC050},
+    {"Assembly-CSharp", "CodeStage.AntiCheat.Detectors", "ObscuredCheatingDetectorListener", "TryShowError", 0, 0x9BC200},
     {"Assembly-CSharp", "PnkClient", "UpdateData", "get_DontSendMe", 0, 0xA04BE0},
     {"Assembly-CSharp", "", "UserResourcesUtil", "GetAllResourceTypes", 0, 0xBCC820},
     {"Assembly-CSharp", "", "UserResourcesUtil", "GetResourceName", 1, 0xBCCB00},
@@ -58,6 +60,7 @@ static MethodFallbackEntry g_methodFallbackTable[58] = {
     {"Assembly-CSharp", "AutoChess.DataClasses.UserData.UserDataBits", "ResourceBit", "ChangeResource", 2, 0xDF79E0},
     {"Assembly-CSharp", "AutoChess.DataClasses.UserData.UserDataBits", "ResourceBit", "GetResource", 1, 0xDF7EB0},
     {"Assembly-CSharp", "AutoChess.DataClasses.UserData.UserDataBits", "ResourceBit", "SetResource", 2, 0xDF83B0},
+    {"Assembly-CSharp", "QuestScripts", "QuestSaveData", "get_sufficientProgress", 0, 0xE3FD90},
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "ApplyDamage", 5, 0xE4A660},
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "ChangeMana", 1, 0xE4C130},
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "GetTurnInterval", 0, 0xE4DB20},

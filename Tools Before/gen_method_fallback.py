@@ -180,6 +180,15 @@ DESIRED: list[tuple[Any, ...]] = [
     ("NewAssets.Scripts.UtilScripts.MyUtil",
                                 "ConvertWinningSideToBattleResult",
                                                       "Assembly-CSharp",      None,       2),
+    # AntiCheat bypass — neutralize cheat detectors
+    ("CodeStage.AntiCheat.Detectors.ObscuredCheatingDetectorListener",
+                                "TryShowError",       "Assembly-CSharp",      None,       0),
+    ("CodeStage.AntiCheat.Detectors.DetectorListenerWithNetworkWindow",
+                                "OnCheatingDetected", "Assembly-CSharp",      None,       0),
+    # Daily Quests — auto-complete via sufficientProgress
+    ("QuestScripts.QuestSaveData",
+                                "get_sufficientProgress",
+                                                      "Assembly-CSharp",      None,       0),
 ]
 
 
