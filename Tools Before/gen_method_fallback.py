@@ -202,6 +202,11 @@ DESIRED: list[tuple[Any, ...]] = [
     ("AutoChess.LocalServer.LocalServerEmulator",
                                 "InvokeOnSlotsPriceUpdate",
                                                       "Assembly-CSharp",      None,       3),
+    # Tracer — runtime StatType dumper (built-in Frida replacement)
+    ("AutoChess.CoreGameplay.Fight.Units.BattleUnit",
+                                "GetCurrentValue",    "Assembly-CSharp",      None,       1),
+    ("AutoChess.CoreGameplay.Fight.Units.BattleUnit",
+                                "GetStatValue",       "Assembly-CSharp",      None,       1),
 ]
 
 
