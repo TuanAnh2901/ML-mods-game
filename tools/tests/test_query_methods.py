@@ -1,5 +1,6 @@
 import json
 import tempfile
+import sys
 import unittest
 from pathlib import Path
 
@@ -122,3 +123,37 @@ class ResolverTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class ReportTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.root = Path(self.temp_dir.name) / "tools"
+        self.root.mkdir()
+        self.map_path = self.root / "methods.json"
+        self.map_path.write_text(
+            json.dumps([{"type": "Game.Unit", "method": "Apply", "signature": "void Apply()", "rva": "0x100"}]),
+            encoding="utf-8",
+        )
+
+    def run_cli(self, *arguments: str):
+        import subprocess
+        return subprocess.run(
+            [sys.executable, str(Path(query_methods.__file__).resolve()), *arguments],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    def test_report_contains_summary_manifest_and_per_method_metadata(self) -> None:
+        query_methods.write_report(
+            self.root / "report",
+            {"results": [{"status": "resolved", "type": "Game.Unit", "method": "Apply", "rva": "0x100"}]},
+        )
+        self.assertTrue((self.root / "report" / "summary.md").is_file())
+        self.assertTrue((self.root / "report" / "methods" / "Game.Unit__Apply__0x100" / "metadata.json").is_file())
+
+    def test_old_keyword_cli_still_succeeds(self) -> None:
+        result = self.run_cli("Apply", "--json", str(self.map_path))
+        self.assertEqual(0, result.returncode)
+        self.assertIn("1 hits", result.stdout)

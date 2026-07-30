@@ -246,19 +246,86 @@ def header_output_path(path: Path, workspace: Path) -> Path:
     return workspace_path(resolved_path, workspace)
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("keywords", nargs="*", help="substrings matched against type::method")
-    ap.add_argument("--type", action="append", default=[], help="substring matched against type only")
-    ap.add_argument("--method", action="append", default=[], help="substring matched against method only")
-    ap.add_argument("--limit", type=int, default=200)
-    ap.add_argument("--sig", action="store_true", help="print full signature instead of type::method")
-    ap.add_argument("--re", action="append", default=[], help="regex matched against type::method")
-    ap.add_argument("--json", default=str(DEFAULT_JSON))
-    args = ap.parse_args()
-    if not (args.keywords or args.type or args.method or args.re):
-        ap.error("need at least one keyword, --type, --method, or --re")
+def atomic_write_text(path: Path, content: str) -> None:
+    """Atomically write UTF-8 text, creating the destination directory."""
+    temp = path.with_suffix(path.suffix + ".tmp")
+    temp.parent.mkdir(parents=True, exist_ok=True)
+    temp.write_text(content, encoding="utf-8")
+    temp.replace(path)
 
+
+def method_slug(type_name: str, method_name: str, rva_text: str) -> str:
+    """Return a stable, filesystem-safe directory name for method metadata."""
+    def clean(value: str) -> str:
+        return re.sub(r"[^A-Za-z0-9._-]+", "_", value).strip("._") or "unknown"
+
+    return "__".join((clean(type_name), clean(method_name), clean(rva_text)))
+
+
+def write_report(report_dir: Path, manifest: dict[str, Any]) -> None:
+    """Write a manifest, a concise Markdown summary, and per-method metadata."""
+    atomic_write_text(
+        report_dir / "manifest.json",
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+    )
+    results = manifest.get("results", [])
+    lines = ["# Method resolution report", "", "| Status | Type | Method | RVA |", "| --- | --- | --- | --- |"]
+    for result in results:
+        lines.append(
+            "| {status} | {type_name} | {method} | {rva} |".format(
+                status=str(result.get("status", "")),
+                type_name=str(result.get("type", "")).replace("|", "\\|"),
+                method=str(result.get("method", "")).replace("|", "\\|"),
+                rva=str(result.get("rva", "")),
+            )
+        )
+        slug = method_slug(
+            str(result.get("type", "")),
+            str(result.get("method", "")),
+            str(result.get("rva", "")),
+        )
+        atomic_write_text(
+            report_dir / "methods" / slug / "metadata.json",
+            json.dumps(result, indent=2, sort_keys=True) + "\n",
+        )
+    atomic_write_text(report_dir / "summary.md", "\n".join(lines) + "\n")
+
+
+def _add_search_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("keywords", nargs="*", help="substrings matched against type::method")
+    parser.add_argument("--type", action="append", default=[], help="substring matched against type only")
+    parser.add_argument("--method", action="append", default=[], help="substring matched against method only")
+    parser.add_argument("--limit", type=int, default=200)
+    parser.add_argument("--sig", action="store_true", help="print full signature instead of type::method")
+    parser.add_argument("--re", action="append", default=[], help="regex matched against type::method")
+    parser.add_argument("--json", default=str(DEFAULT_JSON))
+
+
+def _resolution_metadata(resolution: Resolution) -> dict[str, Any]:
+    entry = resolution.entry
+    return {
+        "status": resolution.status,
+        "type": resolution.target.type_name,
+        "method": resolution.target.method_name,
+        "argc": resolution.target.argc,
+        "signature_contains": resolution.target.signature_contains,
+        "assembly": resolution.target.assembly,
+        "namespace_override": resolution.target.namespace_override,
+        "rva": entry.rva_text if entry else "",
+        "signature": entry.signature if entry else "",
+        "source_index": entry.source_index if entry else None,
+        "shared_rva_count": resolution.shared_rva_count,
+        "candidates": [
+            {"type": candidate.type_name, "method": candidate.method_name,
+             "signature": candidate.signature, "rva": candidate.rva_text}
+            for candidate in resolution.candidates
+        ],
+    }
+
+
+def _run_search(args: argparse.Namespace) -> None:
+    if not (args.keywords or args.type or args.method or args.re):
+        raise ValueError("need at least one keyword, --type, --method, or --re")
     entries, warnings = load_method_entries(Path(args.json))
     for warning in warnings:
         print(f"warning: {warning}", file=sys.stderr)
@@ -281,6 +348,53 @@ def main() -> None:
         tag = f" [SHARED x{shared}]" if shared > 1 else ""
         body = entry.signature if args.sig else f"{entry.type_name}::{entry.method_name}"
         print(f"{entry.rva_text or '?':>12}  {body}{tag}")
+
+
+def _run_extract(args: argparse.Namespace) -> None:
+    if bool(args.target) == bool(args.targets):
+        raise ValueError("extract requires exactly one of --target or --targets")
+    targets = [parse_target(value) for value in args.target] if args.target else load_targets(Path(args.targets))
+    entries, warnings = load_method_entries(Path(args.json))
+    manifest = {
+        "source": str(Path(args.json).resolve()),
+        "warnings": warnings,
+        "results": [_resolution_metadata(resolve_target(target, entries)) for target in targets],
+    }
+    report_candidate = Path(args.report_dir)
+    if not report_candidate.is_absolute():
+        report_candidate = Path(args.workspace) / report_candidate
+    report_dir = workspace_path(report_candidate, Path(args.workspace))
+    write_report(report_dir, manifest)
+    print(f"wrote report: {report_dir}")
+
+
+def _normalize_argv(argv: Sequence[str]) -> list[str]:
+    if not argv or argv[0] in {"search", "extract", "-h", "--help"}:
+        return list(argv)
+    return ["search", *argv]
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    ap = argparse.ArgumentParser()
+    subparsers = ap.add_subparsers(dest="command")
+    search_parser = subparsers.add_parser("search", help="search method metadata")
+    _add_search_arguments(search_parser)
+    extract_parser = subparsers.add_parser("extract", help="resolve targets and write metadata reports")
+    extract_parser.add_argument("--target", action="append", default=[])
+    extract_parser.add_argument("--targets")
+    extract_parser.add_argument("--json", default=str(DEFAULT_JSON))
+    extract_parser.add_argument("--report-dir", default="reports")
+    extract_parser.add_argument("--workspace", default=str(Path.cwd()))
+    args = ap.parse_args(_normalize_argv(list(sys.argv[1:] if argv is None else argv)))
+    try:
+        if args.command == "search":
+            _run_search(args)
+        elif args.command == "extract":
+            _run_extract(args)
+        else:
+            ap.print_help()
+    except ValueError as error:
+        ap.error(str(error))
 
 
 if __name__ == "__main__":
