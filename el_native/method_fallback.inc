@@ -13,13 +13,15 @@ typedef struct {
     uintptr_t rva;
 } MethodFallbackEntry;
 
-static MethodFallbackEntry g_methodFallbackTable[55] = {
+static MethodFallbackEntry g_methodFallbackTable[57] = {
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.CustomTimescale", "IBattleTimescaleProvider", "get_CustomTimescale", 0, 0x0},
     {"Assembly-CSharp", "NewAssets.Scripts.DataClasses", "MonsterStaticData", "get_monsterId", 0, 0x595540},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "SetTimescaleProvider", 1, 0x59BCD0},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "get_IsPaused", 0, 0x5B7830},
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "UnitCore", "get_ArmySide", 0, 0x645320},
+    {"Assembly-CSharp", "", "MonsterDataUtils", "GetSellingPrice", 2, 0x6A0270},
     {"Assembly-CSharp", "", "MonsterDataUtils", "GetSellingPrice", 1, 0x6A0440},
+    {"Assembly-CSharp", "", "MonsterDataUtils", "GetSellingPrice", 5, 0x6A05D0},
     {"Assembly-CSharp", "", "MonsterDataUtils", "get_MonsterDataHelper", 0, 0x6A2F90},
     {"Assembly-CSharp", "", "SM_destroyThisTimed", "Update", 0, 0x6A3C00},
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.CustomTimescale", "ScalableTimescaleProvider", "get_CustomTimescale", 0, 0x6A7A80},

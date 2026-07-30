@@ -162,10 +162,6 @@ DESIRED: list[tuple[Any, ...]] = [
                                                        "Assembly-CSharp",      None,       0),
     # Sell price multiplier
     ("MonsterDataUtils",          "GetSellingPrice",    "Assembly-CSharp",      None,       1),
-    ("MonsterDataUtils",          "GetSellingPrice",    "Assembly-CSharp",      None,       2,
-                                 "(System.Int32 monsterId"),
-    ("MonsterDataUtils",          "GetSellingPrice",    "Assembly-CSharp",      None,       5,
-                                 "(System.Int32 grade, NewAssets.Scripts.DataClasses"),
     # Slot price — hook to always return 0
     ("AutoChess.LocalServer.LocalShopController",
                                 "GetSlotPrice",       "Assembly-CSharp",      None,       1),
