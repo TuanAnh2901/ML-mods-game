@@ -16,10 +16,16 @@ static GetArmySide_t Resolved_GetArmySide = nullptr;
 static bool s_active = false;
 static float s_energyMult = 1.0f;
 static float s_attackSpeedMult = 1.0f;
-static int s_playerSide = 1; // Player = 1 (ArmySide enum)
+static int s_playerSide = 1;
+static int s_manaCallCount = 0;
+static int s_turnCallCount = 0;
 
 static void __fastcall ChangeManaHook(void* self, float delta, void* methodInfo) {
     if (!Original_ChangeMana) return;
+    if (s_manaCallCount == 0) {
+        LOG("[FEATURE] EnergyAttackSpeed: ChangeMana first call self=%p delta=%.2f", self, delta);
+        s_manaCallCount = 1;
+    }
     if (!s_active || !Resolved_GetArmySide) {
         Original_ChangeMana(self, delta, methodInfo);
         return;
@@ -33,6 +39,10 @@ static void __fastcall ChangeManaHook(void* self, float delta, void* methodInfo)
 static float __fastcall GetTurnIntervalHook(void* self, void* methodInfo) {
     if (!Original_GetTurnInterval) return 1.0f;
     float interval = Original_GetTurnInterval(self, methodInfo);
+    if (s_turnCallCount == 0) {
+        LOG("[FEATURE] EnergyAttackSpeed: GetTurnInterval first call self=%p interval=%.3f", self, interval);
+        s_turnCallCount = 1;
+    }
     if (!s_active || !Resolved_GetArmySide) return interval;
     int side = Resolved_GetArmySide(self, nullptr);
     if (side == s_playerSide && s_attackSpeedMult > 0.0f)
@@ -101,6 +111,7 @@ void EnergyAttackSpeedFeature::OnMenu() {
     ImGui::SliderFloat("Attack Speed Mult (player only)", &m_attackSpeedMult, 0.1f, 100.0f, "%.1fx");
     ImGui::InputInt("Player Side ID", &m_playerSide);
     ImGui::Text("Only units with side == %d get multipliers", m_playerSide);
+    ImGui::Text("Mana calls: %d  TurnInterval calls: %d", s_manaCallCount, s_turnCallCount);
 }
 
 static EnergyAttackSpeedFeature g_energyAttackSpeed;

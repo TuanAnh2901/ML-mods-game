@@ -1,0 +1,291 @@
+# Review package: 293fae5..HEAD
+
+## Commits
+510da78 feat: add config-driven method reports
+
+## Files changed
+ tools/.sdd/task-2-report.md       |  33 +++++++++
+ tools/query_methods.py            | 138 ++++++++++++++++++++++++++++++++++----
+ tools/tests/test_query_methods.py |  35 ++++++++++
+ 3 files changed, 194 insertions(+), 12 deletions(-)
+
+## Diff
+diff --git a/tools/.sdd/task-2-report.md b/tools/.sdd/task-2-report.md
+new file mode 100644
+index 0000000..e41567b
+--- /dev/null
++++ b/tools/.sdd/task-2-report.md
+@@ -0,0 +1,33 @@
++?# Task 2 Report — Reports and CLI Routing
++
++## Changes
++
++- Added atomic UTF-8 report writes, stable per-method path slugs, report manifest output, Markdown summaries, and individual `metadata.json` files.
++- Added `search` and metadata-only `extract` subcommands. Legacy argument invocations are normalized to `search`, preserving existing search flags and output behavior.
++- `extract` accepts exactly one source of targets (`--target` or `--targets`), resolves them with the existing public resolver APIs, validates its report destination using `workspace_path`, and writes the report.
++- Added report layout and legacy keyword CLI regression tests.
++
++## TDD Evidence
++
++1. RED: `python -m unittest tests.test_query_methods.ReportTests -v`
++   - Initially failed as expected with `AttributeError: module 'query_methods' has no attribute 'write_report'`.
++2. GREEN: reran the focused tests after the implementation; both tests passed.
++
++## Verification Commands and Results
++
++- `python -m unittest tests.test_query_methods -v` — 12 tests passed.
++- `python query_methods.py --help` — exited 0 and listed `search` and `extract`.
++- `python query_methods.py extract --help` — exited 0 and listed extract options.
++- Extract smoke test using a temporary map/workspace — passed; verified `manifest.json`, `summary.md`, and `methods/Game.Unit__Apply__0x100/metadata.json`.
++- `git diff --check` — no whitespace errors.
++
++## Self-review
++
++- Kept the confirmed resolver and search matching behavior intact; search logic was moved into a helper without changing filters or output formatting.
++- Relative report paths are resolved under the explicitly selected workspace before validation, preventing external or backup-tree report writes.
++- Report writes use a sibling temporary file and replacement, and all report files use UTF-8.
++- Scope is limited to Task 2 implementation, tests, and this report.
++
++## Commit
++
++`feat: add config-driven method reports`
+diff --git a/tools/query_methods.py b/tools/query_methods.py
+index 4e61e0c..47f55fb 100644
+--- a/tools/query_methods.py
++++ b/tools/query_methods.py
+@@ -239,33 +239,100 @@ def workspace_path(path: Path, workspace: Path) -> Path:
+ 
+ def header_output_path(path: Path, workspace: Path) -> Path:
+     """Accept workspace output or the one legacy fallback header destination."""
+     resolved_path = path.resolve()
+     legacy = (workspace.resolve().parent / "el_native" / "method_fallback.inc").resolve()
+     if resolved_path == legacy:
+         return resolved_path
+     return workspace_path(resolved_path, workspace)
+ 
+ 
+-def main() -> None:
+-    ap = argparse.ArgumentParser()
+-    ap.add_argument("keywords", nargs="*", help="substrings matched against type::method")
+-    ap.add_argument("--type", action="append", default=[], help="substring matched against type only")
+-    ap.add_argument("--method", action="append", default=[], help="substring matched against method only")
+-    ap.add_argument("--limit", type=int, default=200)
+-    ap.add_argument("--sig", action="store_true", help="print full signature instead of type::method")
+-    ap.add_argument("--re", action="append", default=[], help="regex matched against type::method")
+-    ap.add_argument("--json", default=str(DEFAULT_JSON))
+-    args = ap.parse_args()
+-    if not (args.keywords or args.type or args.method or args.re):
+-        ap.error("need at least one keyword, --type, --method, or --re")
++def atomic_write_text(path: Path, content: str) -> None:
++    """Atomically write UTF-8 text, creating the destination directory."""
++    temp = path.with_suffix(path.suffix + ".tmp")
++    temp.parent.mkdir(parents=True, exist_ok=True)
++    temp.write_text(content, encoding="utf-8")
++    temp.replace(path)
++
++
++def method_slug(type_name: str, method_name: str, rva_text: str) -> str:
++    """Return a stable, filesystem-safe directory name for method metadata."""
++    def clean(value: str) -> str:
++        return re.sub(r"[^A-Za-z0-9._-]+", "_", value).strip("._") or "unknown"
++
++    return "__".join((clean(type_name), clean(method_name), clean(rva_text)))
+ 
++
++def write_report(report_dir: Path, manifest: dict[str, Any]) -> None:
++    """Write a manifest, a concise Markdown summary, and per-method metadata."""
++    atomic_write_text(
++        report_dir / "manifest.json",
++        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
++    )
++    results = manifest.get("results", [])
++    lines = ["# Method resolution report", "", "| Status | Type | Method | RVA |", "| --- | --- | --- | --- |"]
++    for result in results:
++        lines.append(
++            "| {status} | {type_name} | {method} | {rva} |".format(
++                status=str(result.get("status", "")),
++                type_name=str(result.get("type", "")).replace("|", "\\|"),
++                method=str(result.get("method", "")).replace("|", "\\|"),
++                rva=str(result.get("rva", "")),
++            )
++        )
++        slug = method_slug(
++            str(result.get("type", "")),
++            str(result.get("method", "")),
++            str(result.get("rva", "")),
++        )
++        atomic_write_text(
++            report_dir / "methods" / slug / "metadata.json",
++            json.dumps(result, indent=2, sort_keys=True) + "\n",
++        )
++    atomic_write_text(report_dir / "summary.md", "\n".join(lines) + "\n")
++
++
++def _add_search_arguments(parser: argparse.ArgumentParser) -> None:
++    parser.add_argument("keywords", nargs="*", help="substrings matched against type::method")
++    parser.add_argument("--type", action="append", default=[], help="substring matched against type only")
++    parser.add_argument("--method", action="append", default=[], help="substring matched against method only")
++    parser.add_argument("--limit", type=int, default=200)
++    parser.add_argument("--sig", action="store_true", help="print full signature instead of type::method")
++    parser.add_argument("--re", action="append", default=[], help="regex matched against type::method")
++    parser.add_argument("--json", default=str(DEFAULT_JSON))
++
++
++def _resolution_metadata(resolution: Resolution) -> dict[str, Any]:
++    entry = resolution.entry
++    return {
++        "status": resolution.status,
++        "type": resolution.target.type_name,
++        "method": resolution.target.method_name,
++        "argc": resolution.target.argc,
++        "signature_contains": resolution.target.signature_contains,
++        "assembly": resolution.target.assembly,
++        "namespace_override": resolution.target.namespace_override,
++        "rva": entry.rva_text if entry else "",
++        "signature": entry.signature if entry else "",
++        "source_index": entry.source_index if entry else None,
++        "shared_rva_count": resolution.shared_rva_count,
++        "candidates": [
++            {"type": candidate.type_name, "method": candidate.method_name,
++             "signature": candidate.signature, "rva": candidate.rva_text}
++            for candidate in resolution.candidates
++        ],
++    }
++
++
++def _run_search(args: argparse.Namespace) -> None:
++    if not (args.keywords or args.type or args.method or args.re):
++        raise ValueError("need at least one keyword, --type, --method, or --re")
+     entries, warnings = load_method_entries(Path(args.json))
+     for warning in warnings:
+         print(f"warning: {warning}", file=sys.stderr)
+     rva_users = Counter(entry.rva for entry in entries)
+     keywords = [keyword.casefold() for keyword in args.keywords]
+     type_filters = [value.casefold() for value in args.type]
+     method_filters = [value.casefold() for value in args.method]
+     expressions = [re.compile(value, re.IGNORECASE) for value in args.re]
+     hits = [
+         entry
+@@ -276,12 +343,59 @@ def main() -> None:
+         and (not expressions or any(expression.search(f"{entry.type_name}::{entry.method_name}") for expression in expressions))
+     ]
+     print(f"{len(hits)} hits (showing {min(len(hits), args.limit)})")
+     for entry in hits[: args.limit]:
+         shared = rva_users[entry.rva]
+         tag = f" [SHARED x{shared}]" if shared > 1 else ""
+         body = entry.signature if args.sig else f"{entry.type_name}::{entry.method_name}"
+         print(f"{entry.rva_text or '?':>12}  {body}{tag}")
+ 
+ 
++def _run_extract(args: argparse.Namespace) -> None:
++    if bool(args.target) == bool(args.targets):
++        raise ValueError("extract requires exactly one of --target or --targets")
++    targets = [parse_target(value) for value in args.target] if args.target else load_targets(Path(args.targets))
++    entries, warnings = load_method_entries(Path(args.json))
++    manifest = {
++        "source": str(Path(args.json).resolve()),
++        "warnings": warnings,
++        "results": [_resolution_metadata(resolve_target(target, entries)) for target in targets],
++    }
++    report_candidate = Path(args.report_dir)
++    if not report_candidate.is_absolute():
++        report_candidate = Path(args.workspace) / report_candidate
++    report_dir = workspace_path(report_candidate, Path(args.workspace))
++    write_report(report_dir, manifest)
++    print(f"wrote report: {report_dir}")
++
++
++def _normalize_argv(argv: Sequence[str]) -> list[str]:
++    if not argv or argv[0] in {"search", "extract", "-h", "--help"}:
++        return list(argv)
++    return ["search", *argv]
++
++
++def main(argv: Sequence[str] | None = None) -> None:
++    ap = argparse.ArgumentParser()
++    subparsers = ap.add_subparsers(dest="command")
++    search_parser = subparsers.add_parser("search", help="search method metadata")
++    _add_search_arguments(search_parser)
++    extract_parser = subparsers.add_parser("extract", help="resolve targets and write metadata reports")
++    extract_parser.add_argument("--target", action="append", default=[])
++    extract_parser.add_argument("--targets")
++    extract_parser.add_argument("--json", default=str(DEFAULT_JSON))
++    extract_parser.add_argument("--report-dir", default="reports")
++    extract_parser.add_argument("--workspace", default=str(Path.cwd()))
++    args = ap.parse_args(_normalize_argv(list(sys.argv[1:] if argv is None else argv)))
++    try:
++        if args.command == "search":
++            _run_search(args)
++        elif args.command == "extract":
++            _run_extract(args)
++        else:
++            ap.print_help()
++    except ValueError as error:
++        ap.error(str(error))
++
++
+ if __name__ == "__main__":
+     main()
+diff --git a/tools/tests/test_query_methods.py b/tools/tests/test_query_methods.py
+index 8d27b36..4e9b3bf 100644
+--- a/tools/tests/test_query_methods.py
++++ b/tools/tests/test_query_methods.py
+@@ -1,12 +1,13 @@
+ import json
+ import tempfile
++import sys
+ import unittest
+ from pathlib import Path
+ 
+ import query_methods
+ 
+ 
+ def entry(type_name: str, method_name: str, signature: str, rva: str) -> object:
+     number, rva_text = query_methods.parse_rva(rva)
+     return query_methods.MethodEntry(
+         type_name, method_name, signature, number, rva_text, 0, {}
+@@ -115,10 +116,44 @@ class ResolverTests(unittest.TestCase):
+             query_methods.header_output_path(self.root / "out.inc", self.root),
+         )
+         legacy = self.root.parent / "el_native" / "method_fallback.inc"
+         self.assertEqual(legacy.resolve(), query_methods.header_output_path(legacy, self.root))
+         with self.assertRaises(ValueError):
+             query_methods.header_output_path(self.root.parent / "other.inc", self.root)
+ 
+ 
+ if __name__ == "__main__":
+     unittest.main()
++
++class ReportTests(unittest.TestCase):
++    def setUp(self) -> None:
++        self.temp_dir = tempfile.TemporaryDirectory()
++        self.addCleanup(self.temp_dir.cleanup)
++        self.root = Path(self.temp_dir.name) / "tools"
++        self.root.mkdir()
++        self.map_path = self.root / "methods.json"
++        self.map_path.write_text(
++            json.dumps([{"type": "Game.Unit", "method": "Apply", "signature": "void Apply()", "rva": "0x100"}]),
++            encoding="utf-8",
++        )
++
++    def run_cli(self, *arguments: str):
++        import subprocess
++        return subprocess.run(
++            [sys.executable, str(Path(query_methods.__file__).resolve()), *arguments],
++            capture_output=True,
++            text=True,
++            check=False,
++        )
++
++    def test_report_contains_summary_manifest_and_per_method_metadata(self) -> None:
++        query_methods.write_report(
++            self.root / "report",
++            {"results": [{"status": "resolved", "type": "Game.Unit", "method": "Apply", "rva": "0x100"}]},
++        )
++        self.assertTrue((self.root / "report" / "summary.md").is_file())
++        self.assertTrue((self.root / "report" / "methods" / "Game.Unit__Apply__0x100" / "metadata.json").is_file())
++
++    def test_old_keyword_cli_still_succeeds(self) -> None:
++        result = self.run_cli("Apply", "--json", str(self.map_path))
++        self.assertEqual(0, result.returncode)
++        self.assertIn("1 hits", result.stdout)

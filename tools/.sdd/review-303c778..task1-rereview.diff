@@ -1,0 +1,1026 @@
+# Review package: 303c778..HEAD
+
+## Commits
+293fae5 fix: preserve method map defaults
+b3283af docs: add task 1 report
+e3d58ae feat: add method target resolver
+98fab26 feat: BattleShop v2 — PVP coin/slot/refresh fixes
+
+## Files changed
+ Tools Before/gen_method_fallback.py |   9 ++
+ el_native/features/battle_shop.cpp  | 119 ++++++++++-----
+ el_native/features/battle_shop.h    |   9 +-
+ el_native/method_fallback.inc       |   5 +-
+ tools/.sdd/progress.md              |   8 +
+ tools/.sdd/task-1-brief.md          | 118 ++++++++++++++
+ tools/.sdd/task-1-report.md         |  68 +++++++++
+ tools/query_methods.py              | 296 +++++++++++++++++++++++++++++++-----
+ tools/tests/__init__.py             |   0
+ tools/tests/test_query_methods.py   | 124 +++++++++++++++
+ 10 files changed, 668 insertions(+), 88 deletions(-)
+
+## Diff
+diff --git a/Tools Before/gen_method_fallback.py b/Tools Before/gen_method_fallback.py
+index bf89bdb..82d58bc 100644
+--- a/Tools Before/gen_method_fallback.py	
++++ b/Tools Before/gen_method_fallback.py	
+@@ -186,20 +186,29 @@ DESIRED: list[tuple[Any, ...]] = [
+                                 ".ctor",              "Assembly-CSharp",      None,       7),
+     # AntiCheat bypass — neutralize cheat detectors
+     ("CodeStage.AntiCheat.Detectors.ObscuredCheatingDetectorListener",
+                                 "TryShowError",       "Assembly-CSharp",      None,       0),
+     ("CodeStage.AntiCheat.Detectors.DetectorListenerWithNetworkWindow",
+                                 "OnCheatingDetected", "Assembly-CSharp",      None,       0),
+     # Daily Quests — auto-complete via sufficientProgress
+     ("QuestScripts.QuestSaveData",
+                                 "get_sufficientProgress",
+                                                       "Assembly-CSharp",      None,       0),
++    # PVP Battle Shop — coin/slot fixes for all modes
++    ("AutoChess.CoreGameplay.Participant.ServerParticipant",
++                                "AddSlot",            "Assembly-CSharp",      None,       0),
++    ("AutoChess.CoreGameplay.Participant.ServerPlayerParticipantController",
++                                "AddCoinsAfterBattle",
++                                                      "Assembly-CSharp",      None,       2),
++    ("AutoChess.LocalServer.LocalServerEmulator",
++                                "InvokeOnSlotsPriceUpdate",
++                                                      "Assembly-CSharp",      None,       3),
+ ]
+ 
+ 
+ def split_type_name(full_type: str) -> tuple[str, str]:
+     """Return (namespace, class_name) from a (possibly dotted) type name."""
+     # Handle nested types like "Outer+Inner" — keep Outer as namespace prefix
+     # For simplicity, just use everything before last dot as ns
+     if "." in full_type:
+         *parts, cls = full_type.split(".")
+         ns = ".".join(parts)
+diff --git a/el_native/features/battle_shop.cpp b/el_native/features/battle_shop.cpp
+index ae1ea3d..d771716 100644
+--- a/el_native/features/battle_shop.cpp
++++ b/el_native/features/battle_shop.cpp
+@@ -1,18 +1,18 @@
+ #include "battle_shop.h"
+ #include "../framework.h"
+ #include "../il2cpp_resolve.h"
+ #include "../../minhook/include/MinHook.h"
+ #include "../feature.h"
+ #include "imgui.h"
+ 
+-// -- Free refresh / free slots -------------------------------------------
++// -- PvE: local shop hooks (works in single-player) ------------------------
+ typedef void (__fastcall* SetRefreshPrice_t)(void* self, void* playerId, int32_t price, void* mi);
+ static SetRefreshPrice_t Original_SetRefreshPrice = nullptr;
+ static bool s_forceFreeRefresh = false;
+ 
+ typedef void (__fastcall* UpdateSlotPrice_t)(void* self, void* playerId, int32_t price, void* mi);
+ static UpdateSlotPrice_t Original_UpdateSlotPrice = nullptr;
+ static bool s_forceFreeSlots = false;
+ 
+ typedef int32_t (__fastcall* GetSlotPrice_t)(void* self, void* playerId, void* mi);
+ static GetSlotPrice_t Original_GetSlotPrice = nullptr;
+@@ -20,97 +20,132 @@ static GetSlotPrice_t Original_GetSlotPrice = nullptr;
+ static void __fastcall SetRefreshPriceHook(void* s, void* p, int32_t v, void* m) {
+     if (s_forceFreeRefresh) v = 0; Original_SetRefreshPrice(s, p, v, m);
+ }
+ static void __fastcall UpdateSlotPriceHook(void* s, void* p, int32_t v, void* m) {
+     if (s_forceFreeSlots) v = 0; Original_UpdateSlotPrice(s, p, v, m);
+ }
+ static int32_t __fastcall GetSlotPriceHook(void* s, void* p, void* m) {
+     if (s_forceFreeSlots) return 0; return Original_GetSlotPrice ? Original_GetSlotPrice(s, p, m) : 0;
+ }
+ 
+-// -- Sell multiplier via GetSellingPrice ---------------------------------
+-// Three overloads: MonsterData, (int,int), (int,Rarity,int,int,double).
+-// Only hooking the MonsterData overload made display show multiplied price
+-// but actual SellUnit used the (int,int) overload ? price reverted.
+-// Fix: hook ALL three overloads so SellUnit gets multiplied price too.
+-
++// -- Sell multiplier: 3 GetSellingPrice overloads --------------------------
+ typedef int32_t (__fastcall* GetSellingPrice_t)(void* monster, void* methodInfo);
+ static GetSellingPrice_t Original_GetSellingPrice = nullptr;
++
++typedef int32_t (__fastcall* GetSellingPrice2_t)(int32_t monsterId, int32_t grade, void* mi);
++static GetSellingPrice2_t Original_GetSellingPrice2 = nullptr;
++
++typedef int32_t (__fastcall* GetSellingPrice3_t)(int32_t grade, int32_t rarity, int32_t stackCost, int32_t basePrice, double sellDiscount, void* mi);
++static GetSellingPrice3_t Original_GetSellingPrice3 = nullptr;
++
+ static float s_sellMult = 1.0f;
+ 
+ static int32_t __fastcall GetSellingPriceHook(void* monster, void* mi) {
+     int32_t base = Original_GetSellingPrice ? Original_GetSellingPrice(monster, mi) : 0;
+-    if (s_sellMult != 1.0f && base > 0)
+-        return (int32_t)(base * s_sellMult);
++    if (s_sellMult != 1.0f && base > 0) return (int32_t)(base * s_sellMult);
+     return base;
+ }
+-
+-// Overload: GetSellingPrice(int monsterId, int grade) — used by SellUnit
+-typedef int32_t (__fastcall* GetSellingPrice2_t)(int32_t monsterId, int32_t grade, void* mi);
+-static GetSellingPrice2_t Original_GetSellingPrice2 = nullptr;
+-
+ static int32_t __fastcall GetSellingPrice2Hook(int32_t monsterId, int32_t grade, void* mi) {
+     int32_t base = Original_GetSellingPrice2 ? Original_GetSellingPrice2(monsterId, grade, mi) : 0;
+-    if (s_sellMult != 1.0f && base > 0)
+-        return (int32_t)(base * s_sellMult);
++    if (s_sellMult != 1.0f && base > 0) return (int32_t)(base * s_sellMult);
+     return base;
+ }
+-
+-// Overload: GetSellingPrice(int grade, Rarity, int stackCost, int basePrice, double sellDiscount)
+-typedef int32_t (__fastcall* GetSellingPrice3_t)(int32_t grade, int32_t rarity, int32_t stackCost, int32_t basePrice, double sellDiscount, void* mi);
+-static GetSellingPrice3_t Original_GetSellingPrice3 = nullptr;
+-
+ static int32_t __fastcall GetSellingPrice3Hook(int32_t grade, int32_t rarity, int32_t stackCost, int32_t basePrice, double sellDiscount, void* mi) {
+     int32_t base = Original_GetSellingPrice3 ? Original_GetSellingPrice3(grade, rarity, stackCost, basePrice, sellDiscount, mi) : 0;
+-    if (s_sellMult != 1.0f && base > 0)
+-        return (int32_t)(base * s_sellMult);
++    if (s_sellMult != 1.0f && base > 0) return (int32_t)(base * s_sellMult);
+     return base;
+ }
+ 
++// -- PVP: ServerParticipant hooks (works in all modes) ---------------------
++// ServerParticipant::AddSlot() at 0xE15AB0 — increases max slots by 1
++typedef void(__fastcall* AddSlot_t)(void* self, void* mi);
++static AddSlot_t Original_AddSlot = nullptr;
++static bool s_pvpExtraSlots = false;
++static int s_extraSlotCount = 3;
++
++static void __fastcall AddSlotHook(void* self, void* mi) {
++    Original_AddSlot(self, mi);
++    if (s_pvpExtraSlots)
++        for (int i = 1; i < s_extraSlotCount; i++)
++            Original_AddSlot(self, mi);
++}
++
++// ServerPlayerParticipantController::AddCoinsAfterBattle(BattleResultEnum, int)
++// Force matchResult = Win (0) so player always gets winner coins.
++typedef void(__fastcall* AddCoinsAfterBattle_t)(void* self, int32_t matchResult, int32_t round, void* mi);
++static AddCoinsAfterBattle_t Original_ServerAddCoins = nullptr;
++static bool s_pvpForceWinCoins = false;
++
++static void __fastcall AddCoinsAfterBattleHook(void* self, int32_t matchResult, int32_t round, void* mi) {
++    if (s_pvpForceWinCoins) matchResult = 0; // 0 = Win
++    Original_ServerAddCoins(self, matchResult, round, mi);
++}
++
++// -- PVP: LocalServerEmulator event overrides ------------------------------
++// InvokeOnSlotsPriceUpdate(string id, int slotPrice, IEventResponseData) at 0xC0EB30
++typedef void(__fastcall* InvokeOnSlotsPriceUpdate_t)(void* self, void* id, int32_t price, void* resp, void* mi);
++static InvokeOnSlotsPriceUpdate_t Original_InvokeOnSlotsPriceUpdate = nullptr;
++static bool s_pvpFreeSlots = false;
++
++static void __fastcall InvokeOnSlotsPriceUpdateHook(void* self, void* id, int32_t price, void* resp, void* mi) {
++    if (s_pvpFreeSlots) price = 0;
++    Original_InvokeOnSlotsPriceUpdate(self, id, price, resp, mi);
++}
++
+ // -- Feature -------------------------------------------------------------
+ BattleShopFeature::BattleShopFeature() { name = "BattleShop"; enabled = false; }
+ 
+ void BattleShopFeature::Init() {
+     auto h = [](const char* ns, const char* cls, const char* m, int ac, LPVOID* orig, LPVOID func) {
+         void* fn = ResolveMethodOrFallback("Assembly-CSharp", ns, cls, m, ac);
+         if (fn && MH_CreateHook(fn, func, orig) == MH_OK && MH_EnableHook(fn) == MH_OK)
+             LOG("[FEATURE] BattleShop: hooked %s @ %p", m, fn);
+         else LOG("[FEATURE] BattleShop: %s fail", m);
+     };
++
++    // PvE local shop
+     h("AutoChess.LocalServer", "LocalShopController", "SetRefreshPrice", 2, (LPVOID*)&Original_SetRefreshPrice, &SetRefreshPriceHook);
+     h("AutoChess.LocalServer", "LocalShopController", "UpdateSlotPrice", 2, (LPVOID*)&Original_UpdateSlotPrice, &UpdateSlotPriceHook);
+     h("AutoChess.LocalServer", "LocalShopController", "GetSlotPrice", 1, (LPVOID*)&Original_GetSlotPrice, &GetSlotPriceHook);
+ 
+-    // Hook all 3 GetSellingPrice overloads — only hooking the MonsterData
+-    // overload caused display to show multiplied price but actual SellUnit
+-    // used the (int,int) overload, reverting to original price on server sync.
+-    void* sp1 = ResolveMethodOrFallback("Assembly-CSharp", "", "MonsterDataUtils", "GetSellingPrice", 1);
+-    if (sp1 && MH_CreateHook(sp1, &GetSellingPriceHook, (LPVOID*)&Original_GetSellingPrice) == MH_OK && MH_EnableHook(sp1) == MH_OK)
+-        LOG("[FEATURE] BattleShop: hooked GetSellingPrice(MonsterData) @ %p", sp1);
+-    else LOG("[FEATURE] BattleShop: GetSellingPrice(MonsterData) fail");
+-
+-    void* sp2 = ResolveMethodOrFallback("Assembly-CSharp", "", "MonsterDataUtils", "GetSellingPrice", 2);
+-    if (sp2 && MH_CreateHook(sp2, &GetSellingPrice2Hook, (LPVOID*)&Original_GetSellingPrice2) == MH_OK && MH_EnableHook(sp2) == MH_OK)
+-        LOG("[FEATURE] BattleShop: hooked GetSellingPrice(int,int) @ %p", sp2);
+-    else LOG("[FEATURE] BattleShop: GetSellingPrice(int,int) fail");
+-
+-    void* sp3 = ResolveMethodOrFallback("Assembly-CSharp", "", "MonsterDataUtils", "GetSellingPrice", 5);
+-    if (sp3 && MH_CreateHook(sp3, &GetSellingPrice3Hook, (LPVOID*)&Original_GetSellingPrice3) == MH_OK && MH_EnableHook(sp3) == MH_OK)
+-        LOG("[FEATURE] BattleShop: hooked GetSellingPrice(grade,rarity,stack,base,sellDiscount) @ %p", sp3);
+-    else LOG("[FEATURE] BattleShop: GetSellingPrice(...) 5-arg fail");
++    // Sell multiplier
++    h("", "MonsterDataUtils", "GetSellingPrice", 1, (LPVOID*)&Original_GetSellingPrice, &GetSellingPriceHook);
++    h("", "MonsterDataUtils", "GetSellingPrice", 2, (LPVOID*)&Original_GetSellingPrice2, &GetSellingPrice2Hook);
++    h("", "MonsterDataUtils", "GetSellingPrice", 5, (LPVOID*)&Original_GetSellingPrice3, &GetSellingPrice3Hook);
++
++    // PVP: extra slots
++    h("AutoChess.CoreGameplay.Participant", "ServerParticipant", "AddSlot", 0, (LPVOID*)&Original_AddSlot, &AddSlotHook);
++
++    // PVP: force win coins
++    h("AutoChess.CoreGameplay.Participant", "ServerPlayerParticipantController", "AddCoinsAfterBattle", 2, (LPVOID*)&Original_ServerAddCoins, &AddCoinsAfterBattleHook);
++
++    // PVP: free slot price override (server events)
++    h("AutoChess.LocalServer", "LocalServerEmulator", "InvokeOnSlotsPriceUpdate", 3, (LPVOID*)&Original_InvokeOnSlotsPriceUpdate, &InvokeOnSlotsPriceUpdateHook);
+ }
+ 
+ void BattleShopFeature::OnUpdate() {
+     s_forceFreeRefresh = enabled && m_freeRefresh;
+     s_forceFreeSlots = enabled && m_freeSlots;
+     s_sellMult = enabled ? m_sellMult : 1.0f;
++    s_pvpExtraSlots = enabled && m_pvpExtraSlots;
++    s_pvpForceWinCoins = enabled && m_pvpForceWinCoins;
++    s_pvpFreeSlots = enabled && m_pvpFreeSlots;
+ }
+ 
+ void BattleShopFeature::OnMenu() {
+     if (!enabled) return;
++    ImGui::Text("-- PvE --");
+     ImGui::Checkbox("Free shop refresh", &m_freeRefresh);
+     ImGui::Checkbox("Free slot price", &m_freeSlots);
+-    ImGui::SliderFloat("Sell mult (also affects buy display)", &m_sellMult, 1.0f, 10.0f, "%.1fx");
++    ImGui::SliderFloat("Sell mult", &m_sellMult, 1.0f, 10.0f, "%.1fx");
++
++    ImGui::Separator();
++    ImGui::Text("-- PVP (all modes) --");
++    ImGui::Checkbox("Force winner coins (PVP)", &m_pvpForceWinCoins);
++    ImGui::Checkbox("Extra slots (PVP)", &m_pvpExtraSlots);
++    ImGui::Checkbox("Free slot price (PVP)", &m_pvpFreeSlots);
++    if (m_pvpForceWinCoins)
++        ImGui::TextColored(ImVec4(0, 1, 0, 1), "Always receive winner coin amount");
+ }
+ 
+ static BattleShopFeature g_bs;
+-static int g_bsReg = (RegisterFeature(&g_bs), 0);
+\ No newline at end of file
++static int g_bsReg = (RegisterFeature(&g_bs), 0);
+diff --git a/el_native/features/battle_shop.h b/el_native/features/battle_shop.h
+index 474d210..6c6d8b5 100644
+--- a/el_native/features/battle_shop.h
++++ b/el_native/features/battle_shop.h
+@@ -1,16 +1,19 @@
+ #pragma once
+ #include "../feature.h"
+ 
+-// Hooks in-match shop economy:
+-// - SetRefreshPrice / UpdateSlotPrice ? free reroll & slots
+-// - MonsterDataUtils::GetSellingPrice ? sell price multiplier
+ struct BattleShopFeature : Feature {
+     BattleShopFeature();
+     void Init() override;
+     void OnUpdate() override;
+     void OnMenu() override;
+ 
+     bool m_freeRefresh = false;
+     bool m_freeSlots = false;
+     float m_sellMult = 1.0f;
++
++    // PVP additions
++    bool m_pvpFreeRefresh = false;
++    bool m_pvpFreeSlots = false;
++    bool m_pvpExtraSlots = false;
++    bool m_pvpForceWinCoins = false;
+ };
+diff --git a/el_native/method_fallback.inc b/el_native/method_fallback.inc
+index 182f698..7cca055 100644
+--- a/el_native/method_fallback.inc
++++ b/el_native/method_fallback.inc
+@@ -6,21 +6,21 @@
+ 
+ typedef struct {
+     const char* assembly;
+     const char* ns;
+     const char* klass;
+     const char* method;
+     int argc;
+     uintptr_t rva;
+ } MethodFallbackEntry;
+ 
+-static MethodFallbackEntry g_methodFallbackTable[63] = {
++static MethodFallbackEntry g_methodFallbackTable[66] = {
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.CustomTimescale", "IBattleTimescaleProvider", "get_CustomTimescale", 0, 0x0},
+     {"Assembly-CSharp", "NewAssets.Scripts.DataClasses", "MonsterStaticData", "get_monsterId", 0, 0x595540},
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "SetTimescaleProvider", 1, 0x59BCD0},
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "get_IsPaused", 0, 0x5B7830},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "UnitCore", "get_ArmySide", 0, 0x645320},
+     {"Assembly-CSharp", "", "MonsterDataUtils", "GetSellingPrice", 2, 0x6A0270},
+     {"Assembly-CSharp", "", "MonsterDataUtils", "GetSellingPrice", 1, 0x6A0440},
+     {"Assembly-CSharp", "", "MonsterDataUtils", "GetSellingPrice", 5, 0x6A05D0},
+     {"Assembly-CSharp", "", "MonsterDataUtils", "get_MonsterDataHelper", 0, 0x6A2F90},
+     {"Assembly-CSharp", "", "SM_destroyThisTimed", "Update", 0, 0x6A3C00},
+@@ -41,34 +41,37 @@ static MethodFallbackEntry g_methodFallbackTable[63] = {
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "CreateNew", 1, 0xBEE330},
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "Dispose", 0, 0xBEE420},
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "FixedUpdate", 0, 0xBEE480},
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "InvokeAfterTime", 2, 0xBEE6F0},
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "PauseTime", 0, 0xBEE840},
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "UnpauseTime", 0, 0xBEE8A0},
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalPhaseController", "FinishBattleEarlier", 0, 0xBEF110},
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalPhaseController", "FinishBattle", 0, 0xBEF180},
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalPhaseController", "StartBattle", 0, 0xBF10A0},
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalPhaseController", ".ctor", 7, 0xBF22D0},
++    {"Assembly-CSharp", "AutoChess.LocalServer", "LocalServerEmulator", "InvokeOnSlotsPriceUpdate", 3, 0xC0EB30},
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalShopController", "AddMonstersToQueue", 2, 0xC13100},
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalShopController", "GetSlotPrice", 1, 0xC13520},
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalShopController", "RefreshShop", 3, 0xC13B00},
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalShopController", "SellUnit", 3, 0xC14300},
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalShopController", "SetRefreshPrice", 2, 0xC14570},
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalShopController", "UpdateSlotPrice", 2, 0xC14720},
+     {"Assembly-CSharp", "AutoChess.CheatsWindow.Core.Modules", "CheatModuleGoTo", "FiendGetResource", 2, 0xDA3D50},
+     {"Assembly-CSharp", "AutoChess.Prefabs.CheatsWindow.Scripts.Core.Modules", "CheatModuleOther", "ShowHideConsole", 0, 0xDA4860},
+     {"Assembly-CSharp", "AutoChess.DataClasses.UserData", "ItemModule", "ChangeResource", 3, 0xDF2220},
+     {"Assembly-CSharp", "AutoChess.DataClasses.UserData", "ItemModule", "GetResourceCount", 1, 0xDF2FF0},
+     {"Assembly-CSharp", "AutoChess.DataClasses.UserData", "ItemModule", "get_Instance", 0, 0xDF4170},
+     {"Assembly-CSharp", "AutoChess.DataClasses.UserData.UserDataBits", "ResourceBit", "ChangeResource", 2, 0xDF79E0},
+     {"Assembly-CSharp", "AutoChess.DataClasses.UserData.UserDataBits", "ResourceBit", "GetResource", 1, 0xDF7EB0},
+     {"Assembly-CSharp", "AutoChess.DataClasses.UserData.UserDataBits", "ResourceBit", "SetResource", 2, 0xDF83B0},
++    {"Assembly-CSharp", "AutoChess.CoreGameplay.Participant", "ServerParticipant", "AddSlot", 0, 0xE15AB0},
++    {"Assembly-CSharp", "AutoChess.CoreGameplay.Participant", "ServerPlayerParticipantController", "AddCoinsAfterBattle", 2, 0xE1C580},
+     {"Assembly-CSharp", "QuestScripts", "QuestSaveData", "get_sufficientProgress", 0, 0xE3FD90},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "ApplyDamage", 5, 0xE4A660},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "ChangeMana", 1, 0xE4C130},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "GetTurnInterval", 0, 0xE4DB20},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.CustomTimescale", "ScalableTimescaleProvider", ".ctor", 1, 0xEFACC0},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.BattleShop", "GeorgianLocalMonsterPool", "DrawMonstersFromPool", 2, 0xF260F0},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Pve.LocalServer", "LabyrinthMonsterPool", "DrawMonstersFromPool", 2, 0xF27AA0},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.BattleShop", "LocalMonsterPool", "DrawMonstersFromPool", 2, 0xF29EB0},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Pve.LocalServer", "PveMonsterPool", "DrawMonstersFromPool", 2, 0xF386D0},
+     {"MessagePack", "MessagePack", "MessagePackSerializer", "SerializeToJson", 3, 0x1AE2BB0},
+diff --git a/tools/.sdd/progress.md b/tools/.sdd/progress.md
+new file mode 100644
+index 0000000..4b01097
+--- /dev/null
++++ b/tools/.sdd/progress.md
+@@ -0,0 +1,8 @@
++# SDD progress
++
++Task 1: pending
++Task 2: pending
++Task 3: pending
++Task 4: pending
++Task 5: pending
++Task 6: pending
+diff --git a/tools/.sdd/task-1-brief.md b/tools/.sdd/task-1-brief.md
+new file mode 100644
+index 0000000..d31a376
+--- /dev/null
++++ b/tools/.sdd/task-1-brief.md
+@@ -0,0 +1,118 @@
++## Task 1: Establish models, resolver, and output-path guard
++
++**Files:**
++- Create: `tests/test_query_methods.py`
++- Modify: `query_methods.py:1-71`
++
++**Interfaces produced:**
++
++```python
++@dataclass(frozen=True)
++class MethodEntry:
++    type_name: str; method_name: str; signature: str
++    rva: int | None; rva_text: str; source_index: int; raw: dict[str, Any]
++
++@dataclass(frozen=True)
++class MethodTarget:
++    type_name: str; method_name: str; argc: int | None = None
++    signature_contains: str | None = None; assembly: str = "Assembly-CSharp"
++    namespace_override: str | None = None
++
++@dataclass(frozen=True)
++class Resolution:
++    target: MethodTarget; status: str; entry: MethodEntry | None
++    candidates: tuple[MethodEntry, ...]; shared_rva_count: int = 0
++
++def load_method_entries(path: Path) -> tuple[list[MethodEntry], list[str]]: ...
++def count_signature_params(signature: str) -> int: ...
++def parse_target(value: str) -> MethodTarget: ...
++def load_targets(path: Path) -> list[MethodTarget]: ...
++def resolve_target(target: MethodTarget, entries: Sequence[MethodEntry]) -> Resolution: ...
++def workspace_path(path: Path, workspace: Path) -> Path: ...
++```
++
++- [ ] **Step 1: Write failing resolver tests**
++
++```python
++def test_arity_selects_the_correct_overload(self) -> None:
++    entries = [entry("Game.Unit", "Apply", "void Apply(System.Int32)", "0x100"),
++               entry("Game.Unit", "Apply", "void Apply(System.String,System.Int32)", "0x200")]
++    result = query_methods.resolve_target(query_methods.MethodTarget("Game.Unit", "Apply", argc=2), entries)
++    self.assertEqual("resolved", result.status)
++    self.assertEqual(0x200, result.entry.rva)
++
++def test_unqualified_overloads_are_ambiguous(self) -> None:
++    result = query_methods.resolve_target(query_methods.MethodTarget("Game.Unit", "Apply"), self.two_overloads)
++    self.assertEqual("ambiguous", result.status)
++
++def test_resolved_entry_reports_shared_rva_count(self) -> None:
++    result = query_methods.resolve_target(query_methods.MethodTarget("Game.Unit", "Apply", argc=1), [
++        entry("Game.Unit", "Apply", "void Apply(System.Int32)", "0x100"),
++        entry("Game.Other", "M", "void M()", "0x100"),
++    ])
++    self.assertEqual(2, result.shared_rva_count)
++
++def test_output_path_rejects_backup_and_external_paths(self) -> None:
++    with self.assertRaises(ValueError): query_methods.workspace_path(self.root.parent / "Tools Before" / "report", self.root)
++    with self.assertRaises(ValueError): query_methods.workspace_path(self.root.parent / "report", self.root)
++```
++
++- [ ] **Step 2: Run the tests and observe RED**
++
++Run: `python -m unittest tests.test_query_methods.ResolverTests -v`  
++Expected: import/attribute failures because the models and resolver do not exist.
++
++- [ ] **Step 3: Implement minimal pure functions**
++
++```python
++def parse_rva(value: object) -> tuple[int | None, str]:
++    text = "" if value is None else str(value).strip()
++    try: number = value if isinstance(value, int) else int(text, 0)
++    except (TypeError, ValueError): return None, text
++    return (number if number > 0 else None), text or f"0x{number:X}"
++
++def resolve_target(target: MethodTarget, entries: Sequence[MethodEntry]) -> Resolution:
++    exact = [e for e in entries if e.type_name.casefold() == target.type_name.casefold() and e.method_name.casefold() == target.method_name.casefold()]
++    candidates = exact or [e for e in entries if target.type_name.casefold() in e.type_name.casefold() and e.method_name.casefold() == target.method_name.casefold()]
++    if target.signature_contains: candidates = [e for e in candidates if target.signature_contains.casefold() in e.signature.casefold()]
++    if target.argc is not None: candidates = [e for e in candidates if count_signature_params(e.signature) == target.argc]
++    if not candidates: return Resolution(target, "not_found", None, ())
++    if len(candidates) != 1: return Resolution(target, "ambiguous", None, tuple(candidates))
++    shared = sum(1 for item in entries if item.rva and item.rva == candidates[0].rva)
++    return Resolution(target, "resolved" if candidates[0].rva else "non_decompilable", candidates[0], tuple(candidates), shared)
++```
++
++Use `Path.resolve()` plus `relative_to(workspace.resolve())` in `workspace_path`; reject `before` and `tools before` components. Add `header_output_path` which accepts either a workspace-local path or the fixed legacy default `workspace.parent / "el_native" / "method_fallback.inc"` and rejects every other external path.
++
++- [ ] **Step 4: Run GREEN**
++
++Run: `python -m unittest tests.test_query_methods.ResolverTests -v`  
++Expected: PASS.
++
++- [ ] **Step 5: Add RED tests for JSON/CLI target parsing**
++
++```python
++def test_parse_target_derives_arity(self) -> None:
++    target = query_methods.parse_target("Game.Unit::Apply(System.Int32,System.String)")
++    self.assertEqual(("Game.Unit", "Apply", 2), (target.type_name, target.method_name, target.argc))
++
++def test_metadata_loader_skips_nameless_entries_with_warning(self) -> None:
++    entries, warnings = query_methods.load_method_entries(self.write_json([{"type":"Game.Unit","method":"M","rva":"0x10"}, {"rva":"0x20"}]))
++    self.assertEqual(1, len(entries)); self.assertIn("index 1", warnings[0])
++```
++
++- [ ] **Step 6: Run RED, implement parsers, run GREEN**
++
++Run: `python -m unittest tests.test_query_methods.ResolverTests -v`  
++Expected before implementation: parser/loader assertion failures.  
++Implement `load_targets` for `{"targets":[...]}`, requiring `type`/`method`, validating non-negative `argc`; normalize root-array metadata.  
++Run: `python -m unittest tests.test_query_methods -v; python -m py_compile query_methods.py`  
++Expected after implementation: PASS and exit code 0.
++
++- [ ] **Step 7: Commit**
++
++```powershell
++git add -- query_methods.py tests/test_query_methods.py
++git commit -m "feat: add method target resolver"
++```
++
+diff --git a/tools/.sdd/task-1-report.md b/tools/.sdd/task-1-report.md
+new file mode 100644
+index 0000000..7b178a2
+--- /dev/null
++++ b/tools/.sdd/task-1-report.md
+@@ -0,0 +1,68 @@
++# Task 1 Report — Models, Resolver, and Output-Path Guard
++
++## Changes
++
++- Added immutable `MethodEntry`, `MethodTarget`, and `Resolution` models.
++- Added pure helpers for RVA parsing, signature parameter counting, target parsing,
++  JSON metadata/target loading, method resolution, workspace guarding, and legacy
++  header-output path handling.
++- Preserved the existing query CLI while routing its JSON reading through the
++  validated method-entry loader.
++- Added resolver, loader, target-parser, and path-guard tests.
++
++## TDD evidence
++
++1. Created `tests/test_query_methods.py` before implementing the requested API.
++2. Ran `python -m unittest tests.test_query_methods.ResolverTests -v`.
++   The initial command exposed a test-package import issue; after adding the
++   package marker, it failed as expected with `AttributeError` for the missing
++   `query_methods.parse_rva` API.
++3. Implemented the minimal models and helper functions, then ran the requested
++   resolver test group and the complete test module.
++
++## Verification
++
++Commands run successfully:
++
++```powershell
++python -m unittest tests.test_query_methods -v
++python -m py_compile query_methods.py
++python query_methods.py --help
++```
++
++Result: 8 tests passed; compilation and CLI help both exited with code 0.
++
++## Self-review
++
++- Resolver first checks exact type/method matches, then partial type matches;
++  signature and arity filters are applied before ambiguity handling.
++- Resolved entries report the count of all entries sharing a positive RVA.
++- Metadata rows without both names are skipped with index-specific warnings.
++- Target metadata accepts root arrays and `{ "targets": [...] }`, and rejects
++  invalid or negative arity values.
++- `workspace_path` resolves paths, requires workspace containment, and rejects
++  `before` and `tools before` path components. `header_output_path` additionally
++  admits only the fixed legacy fallback header outside the workspace.
++
++## Commits
++
++- `e3d58aeba3e25cb6b84b56970f4769dd572473df` — `feat: add method target resolver`
++
++## Review fixes
++
++- Restored `DEFAULT_JSON` to the original `Everlusting Life` method-map path and
++  added a regression test that directly verifies the default path.
++- Validated JSON `signature_contains`: it must be a string or `null`; other
++  values now raise a clear `ValueError` during target loading rather than later
++  failing in resolver string operations.
++- Added both tests first and observed two expected failures before applying the
++  minimal fixes.
++
++Fresh verification after the fixes:
++
++```powershell
++python -m unittest tests.test_query_methods -v
++python -m py_compile query_methods.py
++```
++
++Result: 10 tests passed; compilation exited with code 0.
+diff --git a/tools/query_methods.py b/tools/query_methods.py
+index 9015d52..4e61e0c 100644
+--- a/tools/query_methods.py
++++ b/tools/query_methods.py
+@@ -1,75 +1,287 @@
+ #!/usr/bin/env py -3.13
+-"""Search method-pointer-map.json for types/methods matching keywords.
+-
+-Usage:
+-    py -3.13 tools/query_methods.py damage takedamage hp
+-    py -3.13 tools/query_methods.py --type Gacha
+-    py -3.13 tools/query_methods.py --type ItemModule --show-all
+-"""
++"""Query and resolve Cpp2IL method-map entries."""
+ 
+ import argparse
+ import json
+ import re
+ import sys
+ from collections import Counter
++from dataclasses import dataclass
+ from pathlib import Path
++from typing import Any, Sequence
+ 
+ DEFAULT_JSON = Path(
+     r"D:\SteamLibrary\steamapps\common\Everlusting Life"
+     r"\Analysis\Cpp2IL-method-map\method-pointer-map.json"
+ )
+ 
+ 
++@dataclass(frozen=True)
++class MethodEntry:
++    type_name: str
++    method_name: str
++    signature: str
++    rva: int | None
++    rva_text: str
++    source_index: int
++    raw: dict[str, Any]
++
++
++@dataclass(frozen=True)
++class MethodTarget:
++    type_name: str
++    method_name: str
++    argc: int | None = None
++    signature_contains: str | None = None
++    assembly: str = "Assembly-CSharp"
++    namespace_override: str | None = None
++
++
++@dataclass(frozen=True)
++class Resolution:
++    target: MethodTarget
++    status: str
++    entry: MethodEntry | None
++    candidates: tuple[MethodEntry, ...]
++    shared_rva_count: int = 0
++
++
++def parse_rva(value: object) -> tuple[int | None, str]:
++    """Return a positive RVA, if present, together with its original text."""
++    text = "" if value is None else str(value).strip()
++    try:
++        number = value if isinstance(value, int) else int(text, 0)
++    except (TypeError, ValueError):
++        return None, text
++    return (number if number > 0 else None), text or f"0x{number:X}"
++
++
++def _parameters(value: str) -> list[str] | None:
++    """Extract top-level parameters from the first parenthesized parameter list."""
++    start = value.find("(")
++    if start < 0:
++        return None
++    depth = 0
++    items: list[str] = []
++    current: list[str] = []
++    for character in value[start + 1 :]:
++        if character == "(" or character == "<" or character == "[":
++            depth += 1
++        elif character == ")":
++            if depth == 0:
++                items.append("".join(current).strip())
++                return [] if items == [""] else items
++            depth -= 1
++        elif character == ">" or character == "]":
++            if depth:
++                depth -= 1
++        if character == "," and depth == 0:
++            items.append("".join(current).strip())
++            current = []
++        else:
++            current.append(character)
++    return None
++
++
++def count_signature_params(signature: str) -> int:
++    """Count top-level parameters in a Cpp2IL-style signature."""
++    parameters = _parameters(signature)
++    return len(parameters) if parameters is not None else 0
++
++
++def parse_target(value: str) -> MethodTarget:
++    """Parse ``Type::Method`` with an optional parenthesized signature."""
++    text = value.strip()
++    if "::" not in text:
++        raise ValueError("target must use Type::Method syntax")
++    type_name, method_part = (part.strip() for part in text.split("::", 1))
++    if not type_name or not method_part:
++        raise ValueError("target requires both type and method")
++    start = method_part.find("(")
++    if start < 0:
++        return MethodTarget(type_name, method_part)
++    if not method_part.endswith(")"):
++        raise ValueError("target signature must end with a closing parenthesis")
++    method_name = method_part[:start].strip()
++    if not method_name:
++        raise ValueError("target requires a method name")
++    return MethodTarget(type_name, method_name, argc=count_signature_params(method_part))
++
++
++def _read_json_array(path: Path, key: str | None = None) -> list[Any]:
++    data = json.loads(path.read_text(encoding="utf-8"))
++    if isinstance(data, dict) and key is not None:
++        data = data.get(key, data)
++    if not isinstance(data, list):
++        raise ValueError(f"{path} must contain a JSON array")
++    return data
++
++
++def load_method_entries(path: Path) -> tuple[list[MethodEntry], list[str]]:
++    """Load root-array method metadata, retaining malformed rows as warnings."""
++    rows = _read_json_array(path)
++    entries: list[MethodEntry] = []
++    warnings: list[str] = []
++    for index, row in enumerate(rows):
++        if not isinstance(row, dict):
++            warnings.append(f"index {index}: entry is not an object")
++            continue
++        type_name = str(row.get("type", "")).strip()
++        method_name = str(row.get("method", "")).strip()
++        if not type_name or not method_name:
++            warnings.append(f"index {index}: missing type or method")
++            continue
++        rva, rva_text = parse_rva(row.get("rva"))
++        entries.append(
++            MethodEntry(
++                type_name,
++                method_name,
++                str(row.get("signature", "")).strip(),
++                rva,
++                rva_text,
++                index,
++                row,
++            )
++        )
++    return entries, warnings
++
++
++def _target_from_mapping(value: dict[str, Any]) -> MethodTarget:
++    type_name = str(value.get("type", "")).strip()
++    method_name = str(value.get("method", "")).strip()
++    if not type_name or not method_name:
++        raise ValueError("target requires type and method")
++    argc = value.get("argc")
++    if argc is not None and (isinstance(argc, bool) or not isinstance(argc, int) or argc < 0):
++        raise ValueError("target argc must be a non-negative integer")
++    signature_contains = value.get("signature_contains")
++    if signature_contains is not None and not isinstance(signature_contains, str):
++        raise ValueError("target signature_contains must be a string or null")
++    return MethodTarget(
++        type_name,
++        method_name,
++        argc=argc,
++        signature_contains=signature_contains,
++        assembly=value.get("assembly", "Assembly-CSharp"),
++        namespace_override=value.get("namespace_override"),
++    )
++
++
++def load_targets(path: Path) -> list[MethodTarget]:
++    """Load target specifications from a root array or ``{\"targets\": [...]}``."""
++    rows = _read_json_array(path, "targets")
++    targets: list[MethodTarget] = []
++    for index, row in enumerate(rows):
++        if isinstance(row, str):
++            targets.append(parse_target(row))
++        elif isinstance(row, dict):
++            try:
++                targets.append(_target_from_mapping(row))
++            except ValueError as error:
++                raise ValueError(f"target index {index}: {error}") from error
++        else:
++            raise ValueError(f"target index {index}: target must be a string or object")
++    return targets
++
++
++def resolve_target(target: MethodTarget, entries: Sequence[MethodEntry]) -> Resolution:
++    """Resolve a target to exactly one method entry, if possible."""
++    exact = [
++        entry
++        for entry in entries
++        if entry.type_name.casefold() == target.type_name.casefold()
++        and entry.method_name.casefold() == target.method_name.casefold()
++    ]
++    candidates = exact or [
++        entry
++        for entry in entries
++        if target.type_name.casefold() in entry.type_name.casefold()
++        and entry.method_name.casefold() == target.method_name.casefold()
++    ]
++    if target.signature_contains:
++        candidates = [
++            entry
++            for entry in candidates
++            if target.signature_contains.casefold() in entry.signature.casefold()
++        ]
++    if target.argc is not None:
++        candidates = [
++            entry for entry in candidates if count_signature_params(entry.signature) == target.argc
++        ]
++    if not candidates:
++        return Resolution(target, "not_found", None, ())
++    if len(candidates) != 1:
++        return Resolution(target, "ambiguous", None, tuple(candidates))
++    selected = candidates[0]
++    shared = sum(1 for item in entries if item.rva and item.rva == selected.rva)
++    return Resolution(
++        target,
++        "resolved" if selected.rva else "non_decompilable",
++        selected,
++        tuple(candidates),
++        shared,
++    )
++
++
++def workspace_path(path: Path, workspace: Path) -> Path:
++    """Resolve a workspace-local path while excluding backup-tree components."""
++    resolved_workspace = workspace.resolve()
++    resolved_path = path.resolve()
++    try:
++        relative = resolved_path.relative_to(resolved_workspace)
++    except ValueError as error:
++        raise ValueError("path must be inside the workspace") from error
++    forbidden = {"before", "tools before"}
++    if any(part.casefold() in forbidden for part in relative.parts):
++        raise ValueError("path must not use a backup directory")
++    return resolved_path
++
++
++def header_output_path(path: Path, workspace: Path) -> Path:
++    """Accept workspace output or the one legacy fallback header destination."""
++    resolved_path = path.resolve()
++    legacy = (workspace.resolve().parent / "el_native" / "method_fallback.inc").resolve()
++    if resolved_path == legacy:
++        return resolved_path
++    return workspace_path(resolved_path, workspace)
++
++
+ def main() -> None:
+     ap = argparse.ArgumentParser()
+     ap.add_argument("keywords", nargs="*", help="substrings matched against type::method")
+     ap.add_argument("--type", action="append", default=[], help="substring matched against type only")
+     ap.add_argument("--method", action="append", default=[], help="substring matched against method only")
+     ap.add_argument("--limit", type=int, default=200)
+     ap.add_argument("--sig", action="store_true", help="print full signature instead of type::method")
+-    ap.add_argument("--re", action="append", default=[], help="regex matched against type::method (use \\b for word boundaries)")
++    ap.add_argument("--re", action="append", default=[], help="regex matched against type::method")
+     ap.add_argument("--json", default=str(DEFAULT_JSON))
+     args = ap.parse_args()
+-
+     if not (args.keywords or args.type or args.method or args.re):
+         ap.error("need at least one keyword, --type, --method, or --re")
+ 
+-    with open(args.json, "r", encoding="utf-8") as f:
+-        entries = json.load(f)
+-
+-    # Cpp2IL folds identical method bodies onto one RVA. An RVA shared by many
+-    # methods is a dedup'd stub (e.g. `return null`), never a real hook target.
+-    rva_users = Counter(e.get("rva", "") for e in entries)
+-
+-    kw = [k.lower() for k in args.keywords]
+-    tf = [t.lower() for t in args.type]
+-    mf = [m.lower() for m in args.method]
+-    rx = [re.compile(r, re.IGNORECASE) for r in args.re]
+-
+-    hits = []
+-    for e in entries:
+-        t = e.get("type", "")
+-        m = e.get("method", "")
+-        tl, ml = t.lower(), m.lower()
+-        combined = f"{tl}::{ml}"
+-        if kw and not any(k in combined for k in kw):
+-            continue
+-        if tf and not any(x in tl for x in tf):
+-            continue
+-        if mf and not any(x in ml for x in mf):
+-            continue
+-        if rx and not any(r.search(f"{t}::{m}") for r in rx):
+-            continue
+-        hits.append(e)
+-
++    entries, warnings = load_method_entries(Path(args.json))
++    for warning in warnings:
++        print(f"warning: {warning}", file=sys.stderr)
++    rva_users = Counter(entry.rva for entry in entries)
++    keywords = [keyword.casefold() for keyword in args.keywords]
++    type_filters = [value.casefold() for value in args.type]
++    method_filters = [value.casefold() for value in args.method]
++    expressions = [re.compile(value, re.IGNORECASE) for value in args.re]
++    hits = [
++        entry
++        for entry in entries
++        if (not keywords or any(word in f"{entry.type_name}::{entry.method_name}".casefold() for word in keywords))
++        and (not type_filters or any(word in entry.type_name.casefold() for word in type_filters))
++        and (not method_filters or any(word in entry.method_name.casefold() for word in method_filters))
++        and (not expressions or any(expression.search(f"{entry.type_name}::{entry.method_name}") for expression in expressions))
++    ]
+     print(f"{len(hits)} hits (showing {min(len(hits), args.limit)})")
+-    for e in hits[: args.limit]:
+-        rva = e.get("rva", "?")
+-        shared = rva_users.get(rva, 1)
++    for entry in hits[: args.limit]:
++        shared = rva_users[entry.rva]
+         tag = f" [SHARED x{shared}]" if shared > 1 else ""
+-        body = e.get("signature", "?") if args.sig else f"{e.get('type','?')}::{e.get('method','?')}"
+-        print(f"{rva:>12}  {body}{tag}")
++        body = entry.signature if args.sig else f"{entry.type_name}::{entry.method_name}"
++        print(f"{entry.rva_text or '?':>12}  {body}{tag}")
+ 
+ 
+ if __name__ == "__main__":
+     main()
+diff --git a/tools/tests/__init__.py b/tools/tests/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/tools/tests/test_query_methods.py b/tools/tests/test_query_methods.py
+new file mode 100644
+index 0000000..8d27b36
+--- /dev/null
++++ b/tools/tests/test_query_methods.py
+@@ -0,0 +1,124 @@
++import json
++import tempfile
++import unittest
++from pathlib import Path
++
++import query_methods
++
++
++def entry(type_name: str, method_name: str, signature: str, rva: str) -> object:
++    number, rva_text = query_methods.parse_rva(rva)
++    return query_methods.MethodEntry(
++        type_name, method_name, signature, number, rva_text, 0, {}
++    )
++
++
++class ResolverTests(unittest.TestCase):
++    def setUp(self) -> None:
++        self.temp_dir = tempfile.TemporaryDirectory()
++        self.addCleanup(self.temp_dir.cleanup)
++        self.root = Path(self.temp_dir.name) / "tools"
++        self.root.mkdir()
++        self.two_overloads = [
++            entry("Game.Unit", "Apply", "void Apply(System.Int32)", "0x100"),
++            entry(
++                "Game.Unit",
++                "Apply",
++                "void Apply(System.String,System.Int32)",
++                "0x200",
++            ),
++        ]
++
++    def write_json(self, value: object) -> Path:
++        path = self.root / "methods.json"
++        path.write_text(json.dumps(value), encoding="utf-8")
++        return path
++
++    def test_arity_selects_the_correct_overload(self) -> None:
++        result = query_methods.resolve_target(
++            query_methods.MethodTarget("Game.Unit", "Apply", argc=2),
++            self.two_overloads,
++        )
++        self.assertEqual("resolved", result.status)
++        self.assertEqual(0x200, result.entry.rva)
++
++    def test_unqualified_overloads_are_ambiguous(self) -> None:
++        result = query_methods.resolve_target(
++            query_methods.MethodTarget("Game.Unit", "Apply"), self.two_overloads
++        )
++        self.assertEqual("ambiguous", result.status)
++
++    def test_resolved_entry_reports_shared_rva_count(self) -> None:
++        result = query_methods.resolve_target(
++            query_methods.MethodTarget("Game.Unit", "Apply", argc=1),
++            [
++                entry("Game.Unit", "Apply", "void Apply(System.Int32)", "0x100"),
++                entry("Game.Other", "M", "void M()", "0x100"),
++            ],
++        )
++        self.assertEqual(2, result.shared_rva_count)
++
++    def test_output_path_rejects_backup_and_external_paths(self) -> None:
++        with self.assertRaises(ValueError):
++            query_methods.workspace_path(
++                self.root.parent / "Tools Before" / "report", self.root
++            )
++        with self.assertRaises(ValueError):
++            query_methods.workspace_path(self.root.parent / "report", self.root)
++
++    def test_parse_target_derives_arity(self) -> None:
++        target = query_methods.parse_target(
++            "Game.Unit::Apply(System.Int32,System.String)"
++        )
++        self.assertEqual(("Game.Unit", "Apply", 2), (target.type_name, target.method_name, target.argc))
++
++    def test_default_json_preserves_the_legacy_method_map_path(self) -> None:
++        self.assertEqual(
++            Path(
++                r"D:\SteamLibrary\steamapps\common\Everlusting Life"
++                r"\Analysis\Cpp2IL-method-map\method-pointer-map.json"
++            ),
++            query_methods.DEFAULT_JSON,
++        )
++
++    def test_metadata_loader_skips_nameless_entries_with_warning(self) -> None:
++        entries, warnings = query_methods.load_method_entries(
++            self.write_json(
++                [
++                    {"type": "Game.Unit", "method": "M", "rva": "0x10"},
++                    {"rva": "0x20"},
++                ]
++            )
++        )
++        self.assertEqual(1, len(entries))
++        self.assertIn("index 1", warnings[0])
++
++    def test_load_targets_accepts_wrapped_targets_and_rejects_negative_arity(self) -> None:
++        path = self.write_json(
++            {"targets": [{"type": "Game.Unit", "method": "Apply", "argc": 1}]}
++        )
++        self.assertEqual([query_methods.MethodTarget("Game.Unit", "Apply", argc=1)], query_methods.load_targets(path))
++        invalid = self.write_json([{"type": "Game.Unit", "method": "Apply", "argc": -1}])
++        with self.assertRaises(ValueError):
++            query_methods.load_targets(invalid)
++
++    def test_load_targets_rejects_non_string_signature_contains(self) -> None:
++        path = self.write_json(
++            [{"type": "Game.Unit", "method": "Apply", "signature_contains": 7}]
++        )
++        with self.assertRaisesRegex(ValueError, "signature_contains"):
++            query_methods.load_targets(path)
++
++    def test_header_output_path_allows_only_workspace_or_legacy_default(self) -> None:
++        self.assertEqual(
++            (self.root / "out.inc").resolve(),
++            query_methods.header_output_path(self.root / "out.inc", self.root),
++        )
++        legacy = self.root.parent / "el_native" / "method_fallback.inc"
++        self.assertEqual(legacy.resolve(), query_methods.header_output_path(legacy, self.root))
++        with self.assertRaises(ValueError):
++            query_methods.header_output_path(self.root.parent / "other.inc", self.root)
++
++
++if __name__ == "__main__":
++    unittest.main()
