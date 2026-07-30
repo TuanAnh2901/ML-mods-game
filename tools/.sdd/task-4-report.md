@@ -17,3 +17,12 @@ Implemented detached full-analysis lifecycle in `query_methods.py`.
 
 ## Concern
 Full analysis was not run against a real Ghidra installation, as required by the task boundary; behavior is covered with the fake headless process.
+## Follow-up fixes
+- The `cmd.exe` wrapper now uses delayed expansion (`/v:on` and `!ERRORLEVEL!`) so the exit marker is written after the headless command completes.
+- Added zero/nonzero exit lifecycle tests (`ready`/`failed`) and CLI backup-cache rejection tests for `status` and `cancel`.
+- Manifests retain a process-creation token; cancellation checks that token before killing a PID, preventing PID-reuse termination.
+
+### Follow-up verification
+- `python -m unittest tests.test_query_methods -v` — 25 passed.
+- `prepare-full --help`, `status --help` — exit 0.
+- `git diff --check` — clean.

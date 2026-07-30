@@ -189,10 +189,9 @@ DESIRED: list[tuple[Any, ...]] = [
                                 "TryShowError",       "Assembly-CSharp",      None,       0),
     ("CodeStage.AntiCheat.Detectors.DetectorListenerWithNetworkWindow",
                                 "OnCheatingDetected", "Assembly-CSharp",      None,       0),
-    # Daily Quests — auto-complete via sufficientProgress
+    # Daily Quests — auto-complete via IsCompleted (ObscuredBool, 4 bytes in EAX)
     ("QuestScripts.QuestSaveData",
-                                "get_sufficientProgress",
-                                                      "Assembly-CSharp",      None,       0),
+                                "get_IsCompleted",    "Assembly-CSharp",      None,       0),
     # PVP Battle Shop — coin/slot fixes for all modes
     ("AutoChess.CoreGameplay.Participant.ServerParticipant",
                                 "AddSlot",            "Assembly-CSharp",      None,       0),
