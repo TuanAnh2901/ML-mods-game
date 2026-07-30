@@ -72,6 +72,15 @@ class ResolverTests(unittest.TestCase):
         )
         self.assertEqual(("Game.Unit", "Apply", 2), (target.type_name, target.method_name, target.argc))
 
+    def test_default_json_preserves_the_legacy_method_map_path(self) -> None:
+        self.assertEqual(
+            Path(
+                r"D:\SteamLibrary\steamapps\common\Everlusting Life"
+                r"\Analysis\Cpp2IL-method-map\method-pointer-map.json"
+            ),
+            query_methods.DEFAULT_JSON,
+        )
+
     def test_metadata_loader_skips_nameless_entries_with_warning(self) -> None:
         entries, warnings = query_methods.load_method_entries(
             self.write_json(
@@ -92,6 +101,13 @@ class ResolverTests(unittest.TestCase):
         invalid = self.write_json([{"type": "Game.Unit", "method": "Apply", "argc": -1}])
         with self.assertRaises(ValueError):
             query_methods.load_targets(invalid)
+
+    def test_load_targets_rejects_non_string_signature_contains(self) -> None:
+        path = self.write_json(
+            [{"type": "Game.Unit", "method": "Apply", "signature_contains": 7}]
+        )
+        with self.assertRaisesRegex(ValueError, "signature_contains"):
+            query_methods.load_targets(path)
 
     def test_header_output_path_allows_only_workspace_or_legacy_default(self) -> None:
         self.assertEqual(

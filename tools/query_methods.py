@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 DEFAULT_JSON = Path(
-    r"D:\SteamLibrary\steamapps\common\Elustling Life"
+    r"D:\SteamLibrary\steamapps\common\Everlusting Life"
     r"\Analysis\Cpp2IL-method-map\method-pointer-map.json"
 )
 
@@ -154,11 +154,14 @@ def _target_from_mapping(value: dict[str, Any]) -> MethodTarget:
     argc = value.get("argc")
     if argc is not None and (isinstance(argc, bool) or not isinstance(argc, int) or argc < 0):
         raise ValueError("target argc must be a non-negative integer")
+    signature_contains = value.get("signature_contains")
+    if signature_contains is not None and not isinstance(signature_contains, str):
+        raise ValueError("target signature_contains must be a string or null")
     return MethodTarget(
         type_name,
         method_name,
         argc=argc,
-        signature_contains=value.get("signature_contains"),
+        signature_contains=signature_contains,
         assembly=value.get("assembly", "Assembly-CSharp"),
         namespace_override=value.get("namespace_override"),
     )
