@@ -10,4 +10,5 @@ struct EnergyAttackSpeedFeature : Feature {
 
     float m_energyMult = 1.0f;
     float m_attackSpeedMult = 1.0f;
+    int m_playerSide = 1; // Player = 1 (ArmySide enum)
 };

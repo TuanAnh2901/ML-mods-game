@@ -7,27 +7,37 @@
 
 typedef void(__fastcall* ChangeMana_t)(void* self, float delta, void* methodInfo);
 typedef float(__fastcall* GetTurnInterval_t)(void* self, void* methodInfo);
+typedef int32_t(__fastcall* GetArmySide_t)(void* self, void* methodInfo);
 
 static ChangeMana_t Original_ChangeMana = nullptr;
 static GetTurnInterval_t Original_GetTurnInterval = nullptr;
+static GetArmySide_t Resolved_GetArmySide = nullptr;
 
 static bool s_active = false;
 static float s_energyMult = 1.0f;
 static float s_attackSpeedMult = 1.0f;
+static int s_playerSide = 1; // Player = 1 (ArmySide enum)
 
 static void __fastcall ChangeManaHook(void* self, float delta, void* methodInfo) {
     if (!Original_ChangeMana) return;
-    if (!s_active) {
+    if (!s_active || !Resolved_GetArmySide) {
         Original_ChangeMana(self, delta, methodInfo);
         return;
     }
-    Original_ChangeMana(self, delta * s_energyMult, methodInfo);
+    int side = Resolved_GetArmySide(self, nullptr);
+    if (side == s_playerSide)
+        delta *= s_energyMult;
+    Original_ChangeMana(self, delta, methodInfo);
 }
 
 static float __fastcall GetTurnIntervalHook(void* self, void* methodInfo) {
     if (!Original_GetTurnInterval) return 1.0f;
-    if (!s_active) return Original_GetTurnInterval(self, methodInfo);
-    return Original_GetTurnInterval(self, methodInfo) / s_attackSpeedMult;
+    float interval = Original_GetTurnInterval(self, methodInfo);
+    if (!s_active || !Resolved_GetArmySide) return interval;
+    int side = Resolved_GetArmySide(self, nullptr);
+    if (side == s_playerSide && s_attackSpeedMult > 0.0f)
+        interval /= s_attackSpeedMult;
+    return interval;
 }
 
 EnergyAttackSpeedFeature::EnergyAttackSpeedFeature() {
@@ -36,6 +46,10 @@ EnergyAttackSpeedFeature::EnergyAttackSpeedFeature() {
 }
 
 void EnergyAttackSpeedFeature::Init() {
+    Resolved_GetArmySide = (GetArmySide_t)ResolveMethodOrFallback(
+        "Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units",
+        "UnitCore", "get_ArmySide", 0);
+
     void* changeMana = ResolveMethodOrFallback(
         "Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units",
         "BattleUnit", "ChangeMana", 1);
@@ -44,8 +58,8 @@ void EnergyAttackSpeedFeature::Init() {
         "Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units",
         "BattleUnit", "GetTurnInterval", 0);
 
-    LOG("[FEATURE] EnergyAttackSpeed: ChangeMana=%p GetTurnInterval=%p",
-        changeMana, getTurnInterval);
+    LOG("[FEATURE] EnergyAttackSpeed: ChangeMana=%p GetTurnInterval=%p get_ArmySide=%p",
+        changeMana, getTurnInterval, Resolved_GetArmySide);
 
     if (changeMana) {
         if (MH_CreateHook(changeMana, &ChangeManaHook,
@@ -74,6 +88,7 @@ void EnergyAttackSpeedFeature::OnUpdate() {
     s_active = enabled && Original_ChangeMana && Original_GetTurnInterval;
     s_energyMult = m_energyMult;
     s_attackSpeedMult = m_attackSpeedMult;
+    s_playerSide = m_playerSide;
 }
 
 void EnergyAttackSpeedFeature::OnMenu() {
@@ -82,8 +97,10 @@ void EnergyAttackSpeedFeature::OnMenu() {
         ImGui::TextColored(ImVec4(1, 0, 0, 1), "hook unavailable");
         return;
     }
-    ImGui::SliderFloat("Energy Mult", &m_energyMult, 0.0f, 100.0f, "%.1fx");
-    ImGui::SliderFloat("Attack Speed Mult", &m_attackSpeedMult, 0.1f, 100.0f, "%.1fx");
+    ImGui::SliderFloat("Energy Mult (player only)", &m_energyMult, 0.0f, 100.0f, "%.1fx");
+    ImGui::SliderFloat("Attack Speed Mult (player only)", &m_attackSpeedMult, 0.1f, 100.0f, "%.1fx");
+    ImGui::InputInt("Player Side ID", &m_playerSide);
+    ImGui::Text("Only units with side == %d get multipliers", m_playerSide);
 }
 
 static EnergyAttackSpeedFeature g_energyAttackSpeed;
