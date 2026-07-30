@@ -13,7 +13,7 @@ typedef struct {
     uintptr_t rva;
 } MethodFallbackEntry;
 
-static MethodFallbackEntry g_methodFallbackTable[68] = {
+static MethodFallbackEntry g_methodFallbackTable[72] = {
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.CustomTimescale", "IBattleTimescaleProvider", "get_CustomTimescale", 0, 0x0},
     {"Assembly-CSharp", "NewAssets.Scripts.DataClasses", "MonsterStaticData", "get_monsterId", 0, 0x595540},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "SetTimescaleProvider", 1, 0x59BCD0},
@@ -68,9 +68,13 @@ static MethodFallbackEntry g_methodFallbackTable[68] = {
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Participant", "ServerPlayerParticipantController", "AddCoinsAfterBattle", 2, 0xE1C580},
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "ApplyDamage", 5, 0xE4A660},
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "ChangeMana", 1, 0xE4C130},
+    {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "CheckDeath", 2, 0xE4CB50},
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "GetCurrentValue", 1, 0xE4D400},
+    {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "GetOffenseAmplify", 1, 0xE4D760},
+    {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "GetProtectionAmplify", 1, 0xE4D880},
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "GetStatValue", 1, 0xE4D9A0},
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "GetTurnInterval", 0, 0xE4DB20},
+    {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "Heal", 2, 0xE4EEC0},
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.CustomTimescale", "ScalableTimescaleProvider", ".ctor", 1, 0xEFACC0},
     {"Assembly-CSharp", "AutoChess.CoreGameplay.BattleShop", "GeorgianLocalMonsterPool", "DrawMonstersFromPool", 2, 0xF260F0},
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Pve.LocalServer", "LabyrinthMonsterPool", "DrawMonstersFromPool", 2, 0xF27AA0},

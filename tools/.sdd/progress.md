@@ -9,3 +9,4 @@ Task 6: pending
 Task 1: complete (commits 303c778..293fae5, review clean)
 Task 2: complete (commits 293fae5..68e5a0f, review clean)
 Task 3: complete (commits 68e5a0f..6b5bf7d, review clean)
+Task 4: complete (commits 6b5bf7d..7fcab53, review clean)

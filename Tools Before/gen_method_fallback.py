@@ -206,6 +206,16 @@ DESIRED: list[tuple[Any, ...]] = [
                                 "GetCurrentValue",    "Assembly-CSharp",      None,       1),
     ("AutoChess.CoreGameplay.Fight.Units.BattleUnit",
                                 "GetStatValue",       "Assembly-CSharp",      None,       1),
+    # Combat — S-tier: Heal, CheckDeath, Offense/Defense Amplify
+    ("AutoChess.CoreGameplay.Fight.Units.BattleUnit",
+                                "Heal",               "Assembly-CSharp",      None,       2),
+    ("AutoChess.CoreGameplay.Fight.Units.BattleUnit",
+                                "CheckDeath",         "Assembly-CSharp",      None,       2),
+    ("AutoChess.CoreGameplay.Fight.Units.BattleUnit",
+                                "GetOffenseAmplify",  "Assembly-CSharp",      None,       1),
+    ("AutoChess.CoreGameplay.Fight.Units.BattleUnit",
+                                "GetProtectionAmplify",
+                                                      "Assembly-CSharp",      None,       1),
 ]
 
 
