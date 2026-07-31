@@ -1,0 +1,763 @@
+diff --git a/Tools Before/gen_method_fallback.py b/Tools Before/gen_method_fallback.py
+index 689ba17..dc03b3e 100644
+--- a/Tools Before/gen_method_fallback.py	
++++ b/Tools Before/gen_method_fallback.py	
+@@ -201,16 +201,26 @@ DESIRED: list[tuple[Any, ...]] = [
+     ("AutoChess.LocalServer.LocalServerEmulator",
+                                 "InvokeOnSlotsPriceUpdate",
+                                                       "Assembly-CSharp",      None,       3),
+     # Tracer — runtime StatType dumper (built-in Frida replacement)
+     ("AutoChess.CoreGameplay.Fight.Units.BattleUnit",
+                                 "GetCurrentValue",    "Assembly-CSharp",      None,       1),
+     ("AutoChess.CoreGameplay.Fight.Units.BattleUnit",
+                                 "GetStatValue",       "Assembly-CSharp",      None,       1),
++    # Combat — S-tier: Heal, CheckDeath, Offense/Defense Amplify
++    ("AutoChess.CoreGameplay.Fight.Units.BattleUnit",
++                                "Heal",               "Assembly-CSharp",      None,       2),
++    ("AutoChess.CoreGameplay.Fight.Units.BattleUnit",
++                                "CheckDeath",         "Assembly-CSharp",      None,       2),
++    ("AutoChess.CoreGameplay.Fight.Units.BattleUnit",
++                                "GetOffenseAmplify",  "Assembly-CSharp",      None,       1),
++    ("AutoChess.CoreGameplay.Fight.Units.BattleUnit",
++                                "GetProtectionAmplify",
++                                                      "Assembly-CSharp",      None,       1),
+ ]
+ 
+ 
+ def split_type_name(full_type: str) -> tuple[str, str]:
+     """Return (namespace, class_name) from a (possibly dotted) type name."""
+     # Handle nested types like "Outer+Inner" — keep Outer as namespace prefix
+     # For simplicity, just use everything before last dot as ns
+     if "." in full_type:
+diff --git a/build.bat b/build.bat
+index 3562f00..a65601d 100644
+--- a/build.bat
++++ b/build.bat
+@@ -126,16 +126,22 @@ if %ERRORLEVEL% neq 0 (
+ )
+ 
+ "%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_tracer.obj el_native\features\tracer.cpp /I minhook\include /I third_party\imgui
+ if %ERRORLEVEL% neq 0 (
+     echo tracer.cpp COMPILE FAILED
+     exit /b 1
+ )
+ 
++"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_battle_combat.obj el_native\features\battle_combat.cpp /I minhook\include /I third_party\imgui
++if %ERRORLEVEL% neq 0 (
++    echo battle_combat.cpp COMPILE FAILED
++    exit /b 1
++)
++
+ echo === Building ImGui ===
+ set IMGUI=third_party\imgui
+ "%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\imgui.obj %IMGUI%\imgui.cpp /I %IMGUI%
+ if %ERRORLEVEL% neq 0 ( echo imgui.cpp FAILED & exit /b 1 )
+ "%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\imgui_draw.obj %IMGUI%\imgui_draw.cpp /I %IMGUI%
+ if %ERRORLEVEL% neq 0 ( echo imgui_draw.cpp FAILED & exit /b 1 )
+ "%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\imgui_tables.obj %IMGUI%\imgui_tables.cpp /I %IMGUI%
+ if %ERRORLEVEL% neq 0 ( echo imgui_tables.cpp FAILED & exit /b 1 )
+@@ -144,17 +150,17 @@ if %ERRORLEVEL% neq 0 ( echo imgui_widgets.cpp FAILED & exit /b 1 )
+ "%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\imgui_impl_dx11.obj %IMGUI%\imgui_impl_dx11.cpp /I %IMGUI%
+ if %ERRORLEVEL% neq 0 ( echo imgui_impl_dx11.cpp FAILED & exit /b 1 )
+ "%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\imgui_impl_win32.obj %IMGUI%\imgui_impl_win32.cpp /I %IMGUI%
+ if %ERRORLEVEL% neq 0 ( echo imgui_impl_win32.cpp FAILED & exit /b 1 )
+ 
+ "%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /Fe:%BLD%\el_native.dll el_native\dllmain.cpp ^
+     minhook\src\buffer.c minhook\src\hook.c minhook\src\trampoline.c minhook\src\hde\hde64.c ^
+     %BLD%\el_hook.obj %BLD%\el_render.obj %BLD%\el_resolve.obj %BLD%\el_feature.obj %BLD%\el_game_speed.obj %BLD%\el_currency.obj %BLD%\el_resource_dump.obj ^
+-    %BLD%\el_damage.obj %BLD%\el_netlog.obj %BLD%\el_gacha.obj %BLD%\el_cheat_tester.obj %BLD%\el_monster_dump.obj %BLD%\el_battle_shop.obj %BLD%\el_energy_attack_speed.obj %BLD%\el_battle_result.obj %BLD%\el_anticheat.obj %BLD%\el_quest.obj %BLD%\el_tracer.obj ^
++    %BLD%\el_damage.obj %BLD%\el_netlog.obj %BLD%\el_gacha.obj %BLD%\el_cheat_tester.obj %BLD%\el_monster_dump.obj %BLD%\el_battle_shop.obj %BLD%\el_energy_attack_speed.obj %BLD%\el_battle_result.obj %BLD%\el_anticheat.obj %BLD%\el_quest.obj %BLD%\el_tracer.obj %BLD%\el_battle_combat.obj ^
+     %BLD%\imgui.obj %BLD%\imgui_draw.obj %BLD%\imgui_tables.obj %BLD%\imgui_widgets.obj ^
+     %BLD%\imgui_impl_dx11.obj %BLD%\imgui_impl_win32.obj ^
+     /I minhook\include /I minhook\src /I minhook\src\hde /I %IMGUI% /link /DLL /SUBSYSTEM:WINDOWS d3d11.lib dxgi.lib
+ if %ERRORLEVEL% neq 0 (
+     echo DLL LINK FAILED
+     exit /b 1
+ )
+ 
+diff --git a/el_native/features/battle_combat.cpp b/el_native/features/battle_combat.cpp
+new file mode 100644
+index 0000000..02558bf
+--- /dev/null
++++ b/el_native/features/battle_combat.cpp
+@@ -0,0 +1,120 @@
++#include "battle_combat.h"
++#include "../framework.h"
++#include "../il2cpp_resolve.h"
++#include "../../minhook/include/MinHook.h"
++#include "imgui.h"
++#include <cstdint>
++
++// Battle Combat — S-tier method hooks with side detection.
++//
++// Heal(IFieldElement source, float healAmount) at 0xE4EEC0
++//   Multiply heal amount for player side.
++//
++// CheckDeath(IFieldElement source, bool dispose) ? bool at 0xE4CB50
++//   Return false for player side ? units never die (GodMode v2, single hook).
++//
++// GetOffenseAmplify(DamageType type) ? float at 0xE4D760
++//   Multiply offense amplification % for player side ? more damage output.
++//
++// GetProtectionAmplify(DamageType type) ? float at 0xE4D880
++//   Multiply defense amplification % for player side ? less damage taken.
++
++typedef void(__fastcall* Heal_t)(void* self, void* source, float healAmount, void* mi);
++typedef bool(__fastcall* CheckDeath_t)(void* self, void* source, bool dispose, void* mi);
++typedef float(__fastcall* GetAmplify_t)(void* self, int32_t dmgType, void* mi);
++typedef int32_t(__fastcall* GetArmySide_t)(void* self, void* mi);
++
++static Heal_t Original_Heal = nullptr;
++static CheckDeath_t Original_CheckDeath = nullptr;
++static GetAmplify_t Original_GetOffenseAmplify = nullptr;
++static GetAmplify_t Original_GetProtectionAmplify = nullptr;
++static GetArmySide_t Resolved_Side = nullptr;
++
++static bool s_active = false;
++static bool s_godMode = false;
++static float s_healMult = 1.0f;
++static float s_offenseMult = 1.0f;
++static float s_defenseMult = 1.0f;
++static int s_playerSide = 1;
++
++static void __fastcall HealHook(void* self, void* source, float healAmount, void* mi) {
++    if (s_active && Resolved_Side) {
++        int side = Resolved_Side(self, nullptr);
++        if (side == s_playerSide) healAmount *= s_healMult;
++    }
++    Original_Heal(self, source, healAmount, mi);
++}
++
++static bool __fastcall CheckDeathHook(void* self, void* source, bool dispose, void* mi) {
++    if (s_godMode && Resolved_Side) {
++        int side = Resolved_Side(self, nullptr);
++        if (side == s_playerSide) return false; // never die
++    }
++    return Original_CheckDeath(self, source, dispose, mi);
++}
++
++static float __fastcall GetOffenseAmplifyHook(void* self, int32_t dmgType, void* mi) {
++    float val = Original_GetOffenseAmplify(self, dmgType, mi);
++    if (s_active && Resolved_Side && s_offenseMult != 1.0f) {
++        int side = Resolved_Side(self, nullptr);
++        if (side == s_playerSide) val *= s_offenseMult;
++    }
++    return val;
++}
++
++static float __fastcall GetProtectionAmplifyHook(void* self, int32_t dmgType, void* mi) {
++    float val = Original_GetProtectionAmplify(self, dmgType, mi);
++    if (s_active && Resolved_Side && s_defenseMult != 1.0f) {
++        int side = Resolved_Side(self, nullptr);
++        if (side == s_playerSide) val *= s_defenseMult;
++    }
++    return val;
++}
++
++BattleCombatFeature::BattleCombatFeature() { name = "Combat"; enabled = false; }
++
++void BattleCombatFeature::Init() {
++    Resolved_Side = (GetArmySide_t)ResolveMethodOrFallback(
++        "Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units",
++        "UnitCore", "get_ArmySide", 0);
++
++    auto h = [](const char* m, int ac, LPVOID* orig, LPVOID func) {
++        void* fn = ResolveMethodOrFallback("Assembly-CSharp",
++            "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", m, ac);
++        if (fn && MH_CreateHook(fn, func, orig) == MH_OK && MH_EnableHook(fn) == MH_OK)
++            LOG("[FEATURE] Combat: hooked %s @ %p", m, fn);
++        else LOG("[FEATURE] Combat: %s fail (RVA may be shared)", m);
++    };
++
++    h("Heal", 2, (LPVOID*)&Original_Heal, &HealHook);
++    h("CheckDeath", 2, (LPVOID*)&Original_CheckDeath, &CheckDeathHook);
++    h("GetOffenseAmplify", 1, (LPVOID*)&Original_GetOffenseAmplify, &GetOffenseAmplifyHook);
++    h("GetProtectionAmplify", 1, (LPVOID*)&Original_GetProtectionAmplify, &GetProtectionAmplifyHook);
++
++    LOG("[FEATURE] Combat: get_ArmySide=%p init done", Resolved_Side);
++}
++
++void BattleCombatFeature::OnUpdate() {
++    s_active = enabled && Resolved_Side != nullptr;
++    s_godMode = enabled && m_godMode;
++    s_healMult = enabled ? m_healMult : 1.0f;
++    s_offenseMult = enabled ? m_offenseMult : 1.0f;
++    s_defenseMult = enabled ? m_defenseMult : 1.0f;
++    s_playerSide = m_playerSide;
++}
++
++void BattleCombatFeature::OnMenu() {
++    if (!enabled) return;
++    if (!Resolved_Side) { ImGui::TextColored(ImVec4(1, 0, 0, 1), "get_ArmySide unresolved"); return; }
++
++    ImGui::Checkbox("God Mode (prevent death)", &m_godMode);
++    ImGui::SliderFloat("Heal Mult", &m_healMult, 0.0f, 100.0f, "%.1fx");
++    ImGui::SliderFloat("Offense Amplify", &m_offenseMult, 0.0f, 10.0f, "%.1fx");
++    ImGui::SliderFloat("Defense Amplify", &m_defenseMult, 0.0f, 10.0f, "%.1fx");
++    ImGui::InputInt("Player Side ID", &m_playerSide);
++    if (m_godMode)
++        ImGui::TextColored(ImVec4(0, 1, 0, 1), "Player units cannot die");
++}
++
++static BattleCombatFeature g_combat;
++static int g_combatReg = (RegisterFeature(&g_combat), 0);
+diff --git a/el_native/features/battle_combat.h b/el_native/features/battle_combat.h
+new file mode 100644
+index 0000000..276c08d
+--- /dev/null
++++ b/el_native/features/battle_combat.h
+@@ -0,0 +1,15 @@
++#pragma once
++#include "../feature.h"
++
++struct BattleCombatFeature : Feature {
++    BattleCombatFeature();
++    void Init() override;
++    void OnUpdate() override;
++    void OnMenu() override;
++
++    float m_healMult = 1.0f;
++    float m_offenseMult = 1.0f;
++    float m_defenseMult = 1.0f;
++    bool m_godMode = false;
++    int m_playerSide = 1;
++};
+diff --git a/el_native/method_fallback.inc b/el_native/method_fallback.inc
+index e69d632..a2fc670 100644
+--- a/el_native/method_fallback.inc
++++ b/el_native/method_fallback.inc
+@@ -8,17 +8,17 @@ typedef struct {
+     const char* assembly;
+     const char* ns;
+     const char* klass;
+     const char* method;
+     int argc;
+     uintptr_t rva;
+ } MethodFallbackEntry;
+ 
+-static MethodFallbackEntry g_methodFallbackTable[68] = {
++static MethodFallbackEntry g_methodFallbackTable[72] = {
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.CustomTimescale", "IBattleTimescaleProvider", "get_CustomTimescale", 0, 0x0},
+     {"Assembly-CSharp", "NewAssets.Scripts.DataClasses", "MonsterStaticData", "get_monsterId", 0, 0x595540},
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "SetTimescaleProvider", 1, 0x59BCD0},
+     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "get_IsPaused", 0, 0x5B7830},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "UnitCore", "get_ArmySide", 0, 0x645320},
+     {"Assembly-CSharp", "", "MonsterDataUtils", "GetSellingPrice", 2, 0x6A0270},
+     {"Assembly-CSharp", "", "MonsterDataUtils", "GetSellingPrice", 1, 0x6A0440},
+     {"Assembly-CSharp", "", "MonsterDataUtils", "GetSellingPrice", 5, 0x6A05D0},
+@@ -63,19 +63,23 @@ static MethodFallbackEntry g_methodFallbackTable[68] = {
+     {"Assembly-CSharp", "AutoChess.DataClasses.UserData", "ItemModule", "get_Instance", 0, 0xDF4170},
+     {"Assembly-CSharp", "AutoChess.DataClasses.UserData.UserDataBits", "ResourceBit", "ChangeResource", 2, 0xDF79E0},
+     {"Assembly-CSharp", "AutoChess.DataClasses.UserData.UserDataBits", "ResourceBit", "GetResource", 1, 0xDF7EB0},
+     {"Assembly-CSharp", "AutoChess.DataClasses.UserData.UserDataBits", "ResourceBit", "SetResource", 2, 0xDF83B0},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Participant", "ServerParticipant", "AddSlot", 0, 0xE15AB0},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Participant", "ServerPlayerParticipantController", "AddCoinsAfterBattle", 2, 0xE1C580},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "ApplyDamage", 5, 0xE4A660},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "ChangeMana", 1, 0xE4C130},
++    {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "CheckDeath", 2, 0xE4CB50},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "GetCurrentValue", 1, 0xE4D400},
++    {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "GetOffenseAmplify", 1, 0xE4D760},
++    {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "GetProtectionAmplify", 1, 0xE4D880},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "GetStatValue", 1, 0xE4D9A0},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "GetTurnInterval", 0, 0xE4DB20},
++    {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "Heal", 2, 0xE4EEC0},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.CustomTimescale", "ScalableTimescaleProvider", ".ctor", 1, 0xEFACC0},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.BattleShop", "GeorgianLocalMonsterPool", "DrawMonstersFromPool", 2, 0xF260F0},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Pve.LocalServer", "LabyrinthMonsterPool", "DrawMonstersFromPool", 2, 0xF27AA0},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.BattleShop", "LocalMonsterPool", "DrawMonstersFromPool", 2, 0xF29EB0},
+     {"Assembly-CSharp", "AutoChess.CoreGameplay.Pve.LocalServer", "PveMonsterPool", "DrawMonstersFromPool", 2, 0xF386D0},
+     {"MessagePack", "MessagePack", "MessagePackSerializer", "SerializeToJson", 3, 0x1AE2BB0},
+     {"Assembly-CSharp", "PnkClient.Core", "PnkHandler", "SendRequest", 6, 0x1B5D1E0},
+     {"Assembly-CSharp", "PnkClient.Core", "PnkHandler", "SendRequest", 4, 0x1B5D550},
+diff --git a/tools/.sdd/progress.md b/tools/.sdd/progress.md
+index f7143d5..5b6117a 100644
+--- a/tools/.sdd/progress.md
++++ b/tools/.sdd/progress.md
+@@ -4,8 +4,9 @@ Task 1: pending
+ Task 2: pending
+ Task 3: pending
+ Task 4: pending
+ Task 5: pending
+ Task 6: pending
+ Task 1: complete (commits 303c778..293fae5, review clean)
+ Task 2: complete (commits 293fae5..68e5a0f, review clean)
+ Task 3: complete (commits 68e5a0f..6b5bf7d, review clean)
++Task 4: complete (commits 6b5bf7d..7fcab53, review clean)
+diff --git a/tools/.sdd/task-5-brief.md b/tools/.sdd/task-5-brief.md
+new file mode 100644
+index 0000000..14c009b
+--- /dev/null
++++ b/tools/.sdd/task-5-brief.md
+@@ -0,0 +1,39 @@
++## Task 5: Move header generation to the shared resolver
++
++**Files:**
++- Modify: `gen_method_fallback.py:1-346`
++- Create: `tests/test_gen_method_fallback.py`
++
++**Interfaces produced:** `render_header(rows)` and `--target`, `--targets`, `--extract-code` generator CLI options.
++
++- [ ] **Step 1: Write RED tests**
++
++```python
++def test_targets_file_writes_resolved_rva(self) -> None:
++    completed = self.run_generator("--json", str(self.map_path), "--targets", str(self.targets_path), "--output", str(self.output))
++    self.assertEqual(0, completed.returncode); self.assertIn("0x100", self.output.read_text())
++
++def test_ambiguous_target_has_no_arbitrary_rva(self) -> None:
++    completed = self.run_generator("--json", str(self.map_path), "--target", "Game.Unit::Apply", "--output", str(self.output))
++    self.assertEqual(5, completed.returncode); self.assertNotIn("0x100", self.output.read_text())
++```
++
++- [ ] **Step 2: Run RED**
++
++Run: `python -m unittest tests.test_gen_method_fallback -v`  
++Expected: unknown options or arbitrary first candidate behavior.
++
++- [ ] **Step 3: Implement target adapter and safe rendering**
++
++Map each legacy `DESIRED` tuple into `MethodTarget(type_name=d[0], method_name=d[1], assembly=d[2], namespace_override=d[3], argc=d[4], signature_contains=d[5] if len(d) > 5 else None)`. Use config/CLI targets when supplied; otherwise use this adapter. Only render `resolved` rows, sort numeric RVA, validate output with `header_output_path`, and atomically write the unchanged C structure. Return `4` for missing and `5` for ambiguous targets. `--extract-code targeted` delegates to `extract_targeted`; `full` requires a ready job and never starts one.
++
++- [ ] **Step 4: Run GREEN and commit**
++
++Run: `python -m unittest tests.test_gen_method_fallback -v; python gen_method_fallback.py --help; python -m py_compile gen_method_fallback.py query_methods.py`  
++Expected: PASS and all commands exit 0.
++
++```powershell
++git add -- gen_method_fallback.py tests/test_gen_method_fallback.py
++git commit -m "feat: share resolver with fallback generator"
++```
++
+diff --git a/tools/.sdd/task-5-report.md b/tools/.sdd/task-5-report.md
+new file mode 100644
+index 0000000..6d369dd
+--- /dev/null
++++ b/tools/.sdd/task-5-report.md
+@@ -0,0 +1 @@
++# Task 5 report
+diff --git a/tools/gen_method_fallback.py b/tools/gen_method_fallback.py
+index 9c2a331..8de3873 100644
+--- a/tools/gen_method_fallback.py
++++ b/tools/gen_method_fallback.py
+@@ -4,21 +4,34 @@
+ Reads method-pointer-map.json, outputs el_native/method_fallback.inc
+ with critical methods only. No embedding 200k-entry map in the DLL.
+ 
+ Usage:
+     py -3.13 tools/gen_method_fallback.py
+     py -3.13 tools/gen_method_fallback.py --json path/to/method-pointer-map.json
+ """
+ 
+-import json
+-import re
++import argparse
+ import sys
+ from pathlib import Path
+-from typing import Any
++from typing import Any, Sequence
++
++from query_methods import (
++    GhidraSettings,
++    MethodTarget,
++    atomic_write_text,
++    extract_targeted,
++    game_fingerprint,
++    header_output_path,
++    load_method_entries,
++    load_targets,
++    parse_target,
++    read_job,
++    resolve_target,
++)
+ 
+ # -- paths --------------------------------------------------------------
+ ROOT = Path(__file__).resolve().parent.parent
+ DEFAULT_JSON = Path(
+     r"D:\SteamLibrary\steamapps\common\Everlusting Life"
+     r"\Analysis\Cpp2IL-method-map\method-pointer-map.json"
+ )
+ OUTPUT = ROOT / "el_native" / "method_fallback.inc"
+@@ -201,154 +214,147 @@ def count_params(signature: str) -> int:
+             depth += 1
+         elif ch in ">])":
+             depth -= 1
+         elif ch == "," and depth == 0:
+             count += 1
+     return count
+ 
+ 
+-def main() -> None:
+-    import argparse
+-
+-    parser = argparse.ArgumentParser(
+-        description="Generate method fallback C header from method-pointer-map.json"
+-    )
+-    parser.add_argument(
+-        "--json",
+-        default=str(DEFAULT_JSON),
+-        help=f"Path to method-pointer-map.json (default: {DEFAULT_JSON})",
+-    )
+-    parser.add_argument(
+-        "--output",
+-        default=str(OUTPUT),
+-        help=f"Output C header path (default: {OUTPUT})",
+-    )
+-    args = parser.parse_args()
+-
+-    json_path = Path(args.json)
+-    if not json_path.is_file():
+-        print(f"Error: {json_path} not found", file=sys.stderr)
+-        sys.exit(1)
+-
+-    print(f"Reading {json_path} ...")
+-    with open(json_path, "r", encoding="utf-8") as f:
+-        entries: list[dict[str, Any]] = json.load(f)
+ 
+-    print(f"Total entries in map: {len(entries)}")
+-
+-    # Build index: type_method -> list of entry dicts
+-    index: dict[str, list[dict[str, Any]]] = {}
+-    for e in entries:
+-        key = f"{e['type']}::{e['method']}"
+-        index.setdefault(key, []).append(e)
+-
+-    results: list[dict[str, Any]] = []
+-    not_found: list[tuple[str, str]] = []
+-
+-    for desired in DESIRED:
+-        type_pat, method_name, assembly, ns_override, argc = desired[:5]
+-        sig_hint = desired[5] if len(desired) > 5 else None
+-
+-        candidates: list[dict[str, Any]] = []
+-        for key, entry_list in index.items():
+-            if "::" not in key:
+-                continue
+-            t, m = key.split("::", 1)
+-            if m == method_name and type_pat.lower() in t.lower():
+-                candidates.extend(entry_list)
+-
+-        exact = [e for e in candidates if e["type"].lower() == type_pat.lower()]
+-        if exact:
+-            candidates = exact
+-        if sig_hint:
+-            candidates = [e for e in candidates if sig_hint in e["signature"]] or candidates
+-        by_arity = [e for e in candidates if count_params(e["signature"]) == argc]
+-        if by_arity:
+-            candidates = by_arity
+-
+-        if not candidates:
+-            available = sorted(
+-                k for k in index if type_pat.lower() in k.split("::", 1)[0].lower()
+-            )
+-            hints = ", ".join(k.split("::", 1)[1] for k in available[:10])
+-            not_found.append((type_pat, method_name))
+-            print(
+-                f"  NOT FOUND: {type_pat}::{method_name}  "
+-                f"(available: {hints or 'none'})"
+-            )
+-            continue
+-
+-        entry = candidates[0]
+-        type_name = entry["type"]
+-        ns, cls = split_type_name(type_name)
+-        if ns_override is not None:
+-            ns = ns_override
+-        rva_str = entry.get("rva", "0x0")
+-        rva = int(rva_str, 16) if isinstance(rva_str, str) else rva_str
+-
+-        results.append({
+-            "assembly": assembly,
+-            "ns": ns,
+-            "cls": cls,
+-            "method": method_name,
+-            "argc": argc,
+-            "rva": rva,
+-        })
+-
+-    # Sort by RVA for readability
+-    results.sort(key=lambda r: r["rva"])
+-
+-    # Generate C header
+-    lines: list[str] = []
+-    lines.append("// Auto-generated by tools/gen_method_fallback.py")
+-    lines.append("// DO NOT EDIT — regenerate when method-pointer-map.json changes.")
+-    lines.append("#pragma once")
+-    lines.append("#include <stdint.h>")
+-    lines.append("#include <stddef.h>")
+-    lines.append("")
+-    lines.append("typedef struct {")
+-    lines.append("    const char* assembly;")
+-    lines.append("    const char* ns;")
+-    lines.append("    const char* klass;")
+-    lines.append("    const char* method;")
+-    lines.append("    int argc;")
+-    lines.append("    uintptr_t rva;")
+-    lines.append("} MethodFallbackEntry;")
+-    lines.append("")
+-    lines.append(
+-        f"static MethodFallbackEntry g_methodFallbackTable[{len(results)}] = {{"
+-    )
+-
+-    for r in results:
+-        rva_hex = f"0x{r['rva']:X}" if r["rva"] != 0 else "0x0"
++def _legacy_targets() -> list[MethodTarget]:
++    return [MethodTarget(d[0], d[1], argc=d[4], signature_contains=d[5] if len(d) > 5 else None, assembly=d[2], namespace_override=d[3]) for d in DESIRED]
++
++
++def render_header(rows: Sequence[dict[str, Any]]) -> str:
++    """Render the legacy fallback-table C header from resolved rows only."""
++    lines = [
++        "// Auto-generated by tools/gen_method_fallback.py",
++        "// DO NOT EDIT — regenerate when method-pointer-map.json changes.",
++        "#pragma once",
++        "#include <stdint.h>",
++        "#include <stddef.h>",
++        "",
++        "typedef struct {",
++        "    const char* assembly;",
++        "    const char* ns;",
++        "    const char* klass;",
++        "    const char* method;",
++        "    int argc;",
++        "    uintptr_t rva;",
++        "} MethodFallbackEntry;",
++        "",
++        f"static MethodFallbackEntry g_methodFallbackTable[{len(rows)}] = {{",
++    ]
++    for row in sorted(rows, key=lambda row: int(row["rva"])):
++        rva = int(row["rva"])
++        rva_text = f"0x{rva:X}" if rva else "0x0"
+         lines.append(
+-            f'    {{"{r["assembly"]}", "{r["ns"]}", "{r["cls"]}", '
+-            f'"{r["method"]}", {r["argc"]}, {rva_hex}}},'
++            f'    {{"{row["assembly"]}", "{row["ns"]}", "{row["cls"]}", '
++            f'"{row["method"]}", {row["argc"]}, {rva_text}}},'
+         )
+-
+-    lines.append("};")
+-    lines.append("")
+-    lines.append(
++    lines.extend([
++        "};",
++        "",
+         "static const size_t g_methodFallbackCount = "
+-        f"sizeof(g_methodFallbackTable) / sizeof(g_methodFallbackTable[0]);"
++        "sizeof(g_methodFallbackTable) / sizeof(g_methodFallbackTable[0]);",
++        "",
++    ])
++    return "\n".join(lines)
++
++
++def _settings_from_args(args: argparse.Namespace) -> GhidraSettings:
++    """Build extraction settings only when extraction was explicitly requested."""
++    if not args.ghidra_home or not args.game_assembly:
++        raise ValueError("--extract-code requires --ghidra-home and --game-assembly")
++    workspace = Path(args.workspace)
++    cache_dir = Path(args.cache_dir)
++    if not cache_dir.is_absolute():
++        cache_dir = workspace / cache_dir
++    return GhidraSettings(
++        ghidra_home=Path(args.ghidra_home),
++        game_assembly=Path(args.game_assembly),
++        workspace=workspace,
++        cache_dir=cache_dir,
++        timeout_seconds=args.timeout_seconds,
++        decompile_timeout_seconds=args.decompile_timeout_seconds,
+     )
+-    lines.append("")
+ 
+-    content = "\n".join(lines) + "\n"
+ 
+-    out_path = Path(args.output)
+-    out_path.parent.mkdir(parents=True, exist_ok=True)
+-    with open(out_path, "w", encoding="utf-8") as f:
+-        f.write(content)
++def _run_extraction(args: argparse.Namespace, resolutions: Sequence[Any]) -> None:
++    """Run only the explicitly requested extraction mode; full mode never starts jobs."""
++    if args.extract_code == "none":
++        return
++    settings = _settings_from_args(args)
++    if args.extract_code == "targeted":
++        report_dir = Path(args.report_dir)
++        if not report_dir.is_absolute():
++            report_dir = settings.workspace / report_dir
++        extract_targeted(resolutions, settings, report_dir)
++        return
++    job = read_job(settings.cache_dir, game_fingerprint(settings.game_assembly))
++    if job.get("status") != "ready":
++        raise ValueError("--extract-code full requires an existing ready full-analysis job")
++
++
++def main(argv: Sequence[str] | None = None) -> None:
++    parser = argparse.ArgumentParser(description="Generate method fallback C header")
++    parser.add_argument("--json", default=str(DEFAULT_JSON))
++    parser.add_argument("--output", default=str(OUTPUT))
++    parser.add_argument("--target", action="append", default=[])
++    parser.add_argument("--targets")
++    parser.add_argument("--extract-code", choices=("none", "targeted", "full"), default="none")
++    parser.add_argument("--ghidra-home")
++    parser.add_argument("--game-assembly")
++    parser.add_argument("--workspace", default=str(Path(__file__).resolve().parent))
++    parser.add_argument("--cache-dir", default=".cache")
++    parser.add_argument("--report-dir", default="reports")
++    parser.add_argument("--timeout-seconds", type=int, default=3600)
++    parser.add_argument("--decompile-timeout-seconds", type=int, default=60)
++    args = parser.parse_args(argv)
++
++    entries, warnings = load_method_entries(Path(args.json))
++    targets = [parse_target(value) for value in args.target]
++    if args.targets:
++        targets.extend(load_targets(Path(args.targets)))
++    if not targets:
++        targets = _legacy_targets()
++
++    rows: list[dict[str, Any]] = []
++    resolutions = []
++    missing = ambiguous = False
++    for target in targets:
++        result = resolve_target(target, entries)
++        resolutions.append(result)
++        if result.status == "not_found":
++            missing = True
++            print(f"NOT FOUND: {target.type_name}::{target.method_name}", file=sys.stderr)
++            continue
++        if result.status != "resolved":
++            ambiguous = True
++            print(f"AMBIGUOUS/NON-DECOMPILABLE: {target.type_name}::{target.method_name}", file=sys.stderr)
++            continue
++        entry = result.entry
++        assert entry is not None and entry.rva is not None
++        ns, cls = split_type_name(entry.type_name)
++        rows.append({
++            "assembly": target.assembly,
++            "ns": target.namespace_override if target.namespace_override is not None else ns,
++            "cls": cls,
++            "method": target.method_name,
++            "argc": target.argc if target.argc is not None else 0,
++            "rva": entry.rva,
++        })
+ 
+-    print(f"Wrote {out_path}  ({len(results)} entries)")
+-    if not_found:
+-        print(f"WARNING: {len(not_found)} method(s) not found in map:")
+-        for t, m in not_found:
+-            print(f"  {t}::{m}")
+-    else:
+-        print("All methods found.")
+-    print(f"Entries found: {len(results)}")
++    out = header_output_path(Path(args.output), Path(__file__).resolve().parent)
++    atomic_write_text(out, render_header(rows))
++    _run_extraction(args, resolutions)
++    for warning in warnings:
++        print(f"WARNING: {warning}", file=sys.stderr)
++    print(f"Wrote {out} ({len(rows)} entries)")
++    if ambiguous:
++        raise SystemExit(5)
++    if missing:
++        raise SystemExit(4)
+ 
+ 
+ if __name__ == "__main__":
+     main()
+diff --git a/tools/tests/test_gen_method_fallback.py b/tools/tests/test_gen_method_fallback.py
+new file mode 100644
+index 0000000..441758a
+--- /dev/null
++++ b/tools/tests/test_gen_method_fallback.py
+@@ -0,0 +1,96 @@
++import json
++import subprocess
++import sys
++import tempfile
++import unittest
++from unittest.mock import patch
++from pathlib import Path
++
++import gen_method_fallback
++
++
++class GeneratorTests(unittest.TestCase):
++    def setUp(self) -> None:
++        self.temp_dir = tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent)
++        self.addCleanup(self.temp_dir.cleanup)
++        self.root = Path(self.temp_dir.name)
++        self.map_path = self.root / "methods.json"
++        self.targets_path = self.root / "targets.json"
++        self.output = self.root / "generated" / "method_fallback.inc"
++        self.map_path.write_text(json.dumps([
++            {"type": "Game.Unit", "method": "Apply", "signature": "void Apply()", "rva": "0x100"},
++            {"type": "Game.Unit", "method": "Apply", "signature": "void Apply(System.Int32)", "rva": "0x200"},
++        ]), encoding="utf-8")
++        self.targets_path.write_text(json.dumps({"targets": [
++            {"type": "Game.Unit", "method": "Apply", "argc": 0, "assembly": "Game"}
++        ]}), encoding="utf-8")
++
++    def run_generator(self, *arguments: str) -> subprocess.CompletedProcess[str]:
++        return subprocess.run(
++            [sys.executable, str(Path(gen_method_fallback.__file__).resolve()), *arguments],
++            capture_output=True, text=True, check=False,
++        )
++
++    def test_targets_file_writes_resolved_rva(self) -> None:
++        completed = self.run_generator("--json", str(self.map_path), "--targets", str(self.targets_path), "--output", str(self.output))
++        self.assertEqual(0, completed.returncode)
++        self.assertIn("0x100", self.output.read_text(encoding="utf-8"))
++
++    def test_ambiguous_target_has_no_arbitrary_rva(self) -> None:
++        completed = self.run_generator("--json", str(self.map_path), "--target", "Game.Unit::Apply", "--output", str(self.output))
++        self.assertEqual(5, completed.returncode)
++        self.assertNotIn("0x100", self.output.read_text(encoding="utf-8"))
++
++    def test_render_header_preserves_legacy_c_structure(self) -> None:
++        rendered = gen_method_fallback.render_header([
++            {"assembly": "Game", "ns": "Game", "cls": "Unit", "method": "Apply", "argc": 0, "rva": 0x100},
++        ])
++        self.assertIn("// DO NOT EDIT — regenerate when method-pointer-map.json changes.", rendered)
++        self.assertIn("0x100", rendered)
++        self.assertTrue(rendered.endswith("\n"))
++
++
++class ExtractionTests(unittest.TestCase):
++    def setUp(self) -> None:
++        self.temp_dir = tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent)
++        self.addCleanup(self.temp_dir.cleanup)
++        self.root = Path(self.temp_dir.name)
++
++    def args(self, mode: str):
++        return type("Args", (), {
++            "extract_code": mode,
++            "ghidra_home": str(self.root / "ghidra"),
++            "game_assembly": str(self.root / "GameAssembly.dll"),
++            "workspace": str(self.root),
++            "cache_dir": ".cache",
++            "report_dir": "reports",
++            "timeout_seconds": 5,
++            "decompile_timeout_seconds": 3,
++        })()
++
++    def test_targeted_mode_delegates_only_resolutions_to_shared_extractor(self) -> None:
++        resolutions = [object()]
++        with patch("gen_method_fallback.extract_targeted") as extract:
++            gen_method_fallback._run_extraction(self.args("targeted"), resolutions)
++        extract.assert_called_once()
++        self.assertEqual(resolutions, extract.call_args.args[0])
++        self.assertEqual(self.root / "reports", extract.call_args.args[2])
++
++    def test_full_mode_reads_existing_ready_job_without_starting_analysis(self) -> None:
++        with patch("gen_method_fallback.game_fingerprint", return_value="fingerprint"), patch(
++            "gen_method_fallback.read_job", return_value={"status": "ready"}
++        ) as read_job:
++            gen_method_fallback._run_extraction(self.args("full"), [])
++        self.assertEqual(self.root / ".cache", read_job.call_args.args[0])
++        self.assertEqual("fingerprint", read_job.call_args.args[1])
++
++    def test_full_mode_rejects_a_job_that_is_not_ready(self) -> None:
++        with patch("gen_method_fallback.game_fingerprint", return_value="fingerprint"), patch(
++            "gen_method_fallback.read_job", return_value={"status": "running"}
++        ):
++            with self.assertRaisesRegex(ValueError, "requires an existing ready"):
++                gen_method_fallback._run_extraction(self.args("full"), [])
++
++
++if __name__ == "__main__":
++    unittest.main()

@@ -1,0 +1,1676 @@
+{
+  "1": {
+    "name": "Irene",
+    "codename": "irene",
+    "rarity": "uncommon",
+    "availability": "available",
+    "safe": true
+  },
+  "2": {
+    "name": "Zaphyra",
+    "codename": "zaphyra",
+    "rarity": "legendary",
+    "availability": "available",
+    "safe": true
+  },
+  "3": {
+    "name": "Leonie",
+    "codename": "nomad_lvl1",
+    "rarity": "rare",
+    "availability": "available",
+    "safe": true
+  },
+  "4": {
+    "name": "Vasilisa",
+    "codename": "vasilisa",
+    "rarity": "common",
+    "availability": "available",
+    "safe": true
+  },
+  "5": {
+    "name": "Borea",
+    "codename": "borea",
+    "rarity": "uncommon",
+    "availability": "available",
+    "safe": true
+  },
+  "6": {
+    "name": "Kalahiki",
+    "codename": "kalahiki",
+    "rarity": "common",
+    "availability": "available",
+    "safe": true
+  },
+  "7": {
+    "name": "Butch",
+    "codename": "butch",
+    "rarity": "common",
+    "availability": "available",
+    "safe": true
+  },
+  "8": {
+    "name": "Keres",
+    "codename": "dark_knight_lvl1",
+    "rarity": "epic",
+    "availability": "available",
+    "safe": true
+  },
+  "9": {
+    "name": "Constance",
+    "codename": "constance",
+    "rarity": "rare",
+    "availability": "available",
+    "safe": true
+  },
+  "10": {
+    "name": "Katitzi",
+    "codename": "katitzi",
+    "rarity": "common",
+    "availability": "available",
+    "safe": true
+  },
+  "11": {
+    "name": "Alecto",
+    "codename": "cat_lvl1",
+    "rarity": "uncommon",
+    "availability": "available",
+    "safe": true
+  },
+  "12": {
+    "name": "Frances",
+    "codename": "gnome_lvl2",
+    "rarity": "rare",
+    "availability": "available",
+    "safe": true
+  },
+  "13": {
+    "name": "Shaksa",
+    "codename": "shaksa",
+    "rarity": "rare",
+    "availability": "available",
+    "safe": true
+  },
+  "14": {
+    "name": "Orcus",
+    "codename": "orcus",
+    "rarity": "legendary",
+    "availability": "available",
+    "safe": true
+  },
+  "15": {
+    "name": "Madina",
+    "codename": "madina",
+    "rarity": "uncommon",
+    "availability": "available",
+    "safe": true
+  },
+  "16": {
+    "name": "Aeola",
+    "codename": "aeola",
+    "rarity": "common",
+    "availability": "available",
+    "safe": true
+  },
+  "17": {
+    "name": "Lorelei",
+    "codename": "lizard_lvl1",
+    "rarity": "rare",
+    "availability": "available",
+    "safe": true
+  },
+  "18": {
+    "name": "Ripley",
+    "codename": "ripley",
+    "rarity": "epic",
+    "availability": "available",
+    "safe": true
+  },
+  "19": {
+    "name": "Violette",
+    "codename": "violette",
+    "rarity": "uncommon",
+    "availability": "available",
+    "safe": true
+  },
+  "20": {
+    "name": "Blanca",
+    "codename": "blanca",
+    "rarity": "uncommon",
+    "availability": "available",
+    "safe": true
+  },
+  "21": {
+    "name": "Helga",
+    "codename": "helga",
+    "rarity": "epic",
+    "availability": "available",
+    "safe": true
+  },
+  "22": {
+    "name": "Theia",
+    "codename": "theia",
+    "rarity": "epic",
+    "availability": "available",
+    "safe": true
+  },
+  "23": {
+    "name": "Ula",
+    "codename": "ula",
+    "rarity": "common",
+    "availability": "available",
+    "safe": true
+  },
+  "24": {
+    "name": "Mable",
+    "codename": "mable",
+    "rarity": "common",
+    "availability": "available",
+    "safe": true
+  },
+  "25": {
+    "name": "Asmodea",
+    "codename": "asmodea",
+    "rarity": "legendary",
+    "availability": "available",
+    "safe": true
+  },
+  "26": {
+    "name": "Daria",
+    "codename": "daria",
+    "rarity": "rare",
+    "availability": "available",
+    "safe": true
+  },
+  "27": {
+    "name": "Ingrid",
+    "codename": "ingrid",
+    "rarity": "common",
+    "availability": "available",
+    "safe": true
+  },
+  "28": {
+    "name": "Ionia",
+    "codename": "chandi",
+    "rarity": "rare",
+    "availability": "available",
+    "safe": true
+  },
+  "29": {
+    "name": "Triteia",
+    "codename": "triteia",
+    "rarity": "legendary",
+    "availability": "available",
+    "safe": true
+  },
+  "30": {
+    "name": "Elianthe",
+    "codename": "elianthe",
+    "rarity": "common",
+    "availability": "available",
+    "safe": true
+  },
+  "31": {
+    "name": "Lilith",
+    "codename": "lilith",
+    "rarity": "epic",
+    "availability": "available",
+    "safe": true
+  },
+  "32": {
+    "name": "Leila",
+    "codename": "leila",
+    "rarity": "uncommon",
+    "availability": "available",
+    "safe": true
+  },
+  "33": {
+    "name": "Daphne",
+    "codename": "daphne",
+    "rarity": "legendary",
+    "availability": "available",
+    "safe": true
+  },
+  "34": {
+    "name": "Miriel",
+    "codename": "stone_golem_lvl1",
+    "rarity": "uncommon",
+    "availability": "available",
+    "safe": true
+  },
+  "35": {
+    "name": "Supernova",
+    "codename": "supernova",
+    "rarity": "common",
+    "availability": "available",
+    "safe": true
+  },
+  "36": {
+    "name": "Ziggy",
+    "codename": "ziggy",
+    "rarity": "rare",
+    "availability": "available",
+    "safe": true
+  },
+  "37": {
+    "name": "Alice",
+    "codename": "alice",
+    "rarity": "rare",
+    "availability": "available",
+    "safe": true
+  },
+  "38": {
+    "name": "Shiloh",
+    "codename": "shiloh",
+    "rarity": "uncommon",
+    "availability": "available",
+    "safe": true
+  },
+  "39": {
+    "name": "Fenri",
+    "codename": "mushroom_lvl1",
+    "rarity": "uncommon",
+    "availability": "available",
+    "safe": true
+  },
+  "40": {
+    "name": "Luna",
+    "codename": "luna",
+    "rarity": "rare",
+    "availability": "available",
+    "safe": true
+  },
+  "41": {
+    "name": "Molly",
+    "codename": "druid_lvl1",
+    "rarity": "epic",
+    "availability": "available",
+    "safe": true
+  },
+  "42": {
+    "name": "Katherina",
+    "codename": "katherina",
+    "rarity": "epic",
+    "availability": "available",
+    "safe": true
+  },
+  "43": {
+    "name": "Inara",
+    "codename": "inara",
+    "rarity": "common",
+    "availability": "available",
+    "safe": true
+  },
+  "44": {
+    "name": "Sonya",
+    "codename": "sonya",
+    "rarity": "rare",
+    "availability": "available",
+    "safe": true
+  },
+  "45": {
+    "name": "Scarlett",
+    "codename": "scarlett",
+    "rarity": "uncommon",
+    "availability": "available",
+    "safe": true
+  },
+  "46": {
+    "name": "Knox",
+    "codename": "knox",
+    "rarity": "rare",
+    "availability": "available",
+    "safe": true
+  },
+  "47": {
+    "name": "Trish",
+    "codename": "trish",
+    "rarity": "common",
+    "availability": "available",
+    "safe": true
+  },
+  "48": {
+    "name": "Colombina",
+    "codename": "colombina",
+    "rarity": "uncommon",
+    "availability": "available",
+    "safe": true
+  },
+  "49": {
+    "name": "Mary",
+    "codename": "mary",
+    "rarity": "legendary",
+    "availability": "available",
+    "safe": true
+  },
+  "50": {
+    "name": "Mithra",
+    "codename": "mithra",
+    "rarity": "rare",
+    "availability": "available",
+    "safe": true
+  },
+  "51": {
+    "name": "Aurora",
+    "codename": "aurora",
+    "rarity": "common",
+    "availability": "available",
+    "safe": true
+  },
+  "52": {
+    "name": "Erumi",
+    "codename": "turtle_lvl1",
+    "rarity": "epic",
+    "availability": "available",
+    "safe": true
+  },
+  "53": {
+    "name": "Helly",
+    "codename": "helly",
+    "rarity": "uncommon",
+    "availability": "available",
+    "safe": true
+  },
+  "54": {
+    "name": "Marylin",
+    "codename": "marylin",
+    "rarity": "common",
+    "availability": "available",
+    "safe": true
+  },
+  "55": {
+    "name": "Nephtys",
+    "codename": "nephtys",
+    "rarity": "epic",
+    "availability": "available",
+    "safe": true
+  },
+  "56": {
+    "name": "Bonnie",
+    "codename": "bonnie",
+    "rarity": "legendary",
+    "availability": "available",
+    "safe": true
+  },
+  "57": {
+    "name": "Lothariel",
+    "codename": "lothariel",
+    "rarity": "rare",
+    "availability": "available",
+    "safe": true
+  },
+  "58": {
+    "name": "Galatea",
+    "codename": "galatea",
+    "rarity": "uncommon",
+    "availability": "available",
+    "safe": true
+  },
+  "59": {
+    "name": "Belphegora",
+    "codename": "belphegora",
+    "rarity": "uncommon",
+    "availability": "available",
+    "safe": true
+  },
+  "60": {
+    "name": "Blair",
+    "codename": "blair",
+    "rarity": "epic",
+    "availability": "available",
+    "safe": true
+  },
+  "61": {
+    "name": "Forest Keeper",
+    "codename": "lil_face_lvl3",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "62": {
+    "name": "Лилфейс",
+    "codename": "lil_face_lvl1",
+    "rarity": "epic",
+    "availability": "not_available",
+    "safe": true
+  },
+  "63": {
+    "name": "Комонка",
+    "codename": "little_fox_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "64": {
+    "name": "Анкомонка",
+    "codename": "little_fox_lvl1",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "65": {
+    "name": "Рарка",
+    "codename": "little_fox_lvl1",
+    "rarity": "rare",
+    "availability": "not_available",
+    "safe": true
+  },
+  "66": {
+    "name": "Эпик",
+    "codename": "little_fox_lvl1",
+    "rarity": "epic",
+    "availability": "not_available",
+    "safe": true
+  },
+  "67": {
+    "name": "Лега",
+    "codename": "little_fox_lvl1",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "68": {
+    "name": "Монка",
+    "codename": "little_fox_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "69": {
+    "name": "Скелет",
+    "codename": "skeleton_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "70": {
+    "name": "Груша",
+    "codename": "ghost",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "73": {
+    "name": "АПАСНЫЙ ТОТЕМ",
+    "codename": "totem_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "80": {
+    "name": "Коммонка_c/c",
+    "codename": "slayer_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "81": {
+    "name": "Анкоммонка_c/c",
+    "codename": "knight_girl_lvl1",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "82": {
+    "name": "Рарка_c/c",
+    "codename": "elf_archer_lvl1",
+    "rarity": "rare",
+    "availability": "not_available",
+    "safe": true
+  },
+  "83": {
+    "name": "Эпик_c/c",
+    "codename": "slayer_lvl1",
+    "rarity": "epic",
+    "availability": "not_available",
+    "safe": true
+  },
+  "84": {
+    "name": "Лега_c/c",
+    "codename": "slayer_lvl1",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "85": {
+    "name": "Груша",
+    "codename": "lil_face_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "86": {
+    "name": "Коммонка_c/c",
+    "codename": "little_fox_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "87": {
+    "name": "Анкоммонка_c/c",
+    "codename": "little_fox_lvl1",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "88": {
+    "name": "Рарка_c/c",
+    "codename": "little_fox_lvl1",
+    "rarity": "rare",
+    "availability": "not_available",
+    "safe": true
+  },
+  "89": {
+    "name": "Эпик_c/c",
+    "codename": "little_fox_lvl1",
+    "rarity": "epic",
+    "availability": "not_available",
+    "safe": true
+  },
+  "90": {
+    "name": "Лега_c/c",
+    "codename": "little_fox_lvl1",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "91": {
+    "name": "Коммонка_лвлап",
+    "codename": "little_fox_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "92": {
+    "name": "Неуязвимая груша",
+    "codename": "totem_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "93": {
+    "name": "Физическая груша",
+    "codename": "totem_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "94": {
+    "name": "Магическая груша",
+    "codename": "totem_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "95": {
+    "name": "Forest Keeper",
+    "codename": "recruit_forest_keeper",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "96": {
+    "name": "Forest Keeper",
+    "codename": "recruit_forest_keeper",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "97": {
+    "name": "Forest Keeper",
+    "codename": "recruit_forest_keeper",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "100": {
+    "name": "Lucifer",
+    "codename": "lucifer",
+    "rarity": "common",
+    "availability": "for_event",
+    "safe": true
+  },
+  "101": {
+    "name": "Viola",
+    "codename": "viola",
+    "rarity": "common",
+    "availability": "for_event",
+    "safe": true
+  },
+  "102": {
+    "name": "Alvira",
+    "codename": "alvira",
+    "rarity": "common",
+    "availability": "for_event",
+    "safe": true
+  },
+  "103": {
+    "name": "Чейз",
+    "codename": "red_panda_lvl3",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "104": {
+    "name": "Ms. Storm",
+    "codename": "ms_storm",
+    "rarity": "common",
+    "availability": "for_event",
+    "safe": true
+  },
+  "105": {
+    "name": "Messalina",
+    "codename": "messalina",
+    "rarity": "common",
+    "availability": "for_event",
+    "safe": true
+  },
+  "106": {
+    "name": "Octavianne",
+    "codename": "octavianne",
+    "rarity": "uncommon",
+    "availability": "for_event",
+    "safe": true
+  },
+  "107": {
+    "name": "Тритон",
+    "codename": "merfolk_lvl3",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "108": {
+    "name": "Медуза",
+    "codename": "medusa_lvl3",
+    "rarity": "rare",
+    "availability": "not_available",
+    "safe": true
+  },
+  "109": {
+    "name": "Ruadriel",
+    "codename": "ruadriel",
+    "rarity": "uncommon",
+    "availability": "for_event",
+    "safe": true
+  },
+  "110": {
+    "name": "Vex",
+    "codename": "vex",
+    "rarity": "common",
+    "availability": "for_event",
+    "safe": true
+  },
+  "111": {
+    "name": "Carmilla",
+    "codename": "carmilla",
+    "rarity": "rare",
+    "availability": "for_event",
+    "safe": true
+  },
+  "112": {
+    "name": "Гремори",
+    "codename": "imp_girl_lvl3",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "113": {
+    "name": "Регардус",
+    "codename": "darkman_lvl5",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "114": {
+    "name": "Castiel",
+    "codename": "castiel",
+    "rarity": "common",
+    "availability": "for_event",
+    "safe": true
+  },
+  "115": {
+    "name": "Мелия",
+    "codename": "driada_lvl3",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "116": {
+    "name": "Serleena",
+    "codename": "serleena",
+    "rarity": "legendary",
+    "availability": "for_event",
+    "safe": true
+  },
+  "117": {
+    "name": "Narcissa",
+    "codename": "narcissa",
+    "rarity": "legendary",
+    "availability": "for_event",
+    "safe": true
+  },
+  "118": {
+    "name": "A.V.A.",
+    "codename": "ava",
+    "rarity": "rare",
+    "availability": "for_event",
+    "safe": true
+  },
+  "119": {
+    "name": "Delilah",
+    "codename": "delilah",
+    "rarity": "common",
+    "availability": "for_event",
+    "safe": true
+  },
+  "120": {
+    "name": "Snezhana",
+    "codename": "snezhana",
+    "rarity": "legendary",
+    "availability": "for_event",
+    "safe": true
+  },
+  "121": {
+    "name": "Рейко",
+    "codename": "little_fox_lvl3",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "122": {
+    "name": "Mycelia",
+    "codename": "mycelia",
+    "rarity": "epic",
+    "availability": "for_event",
+    "safe": true
+  },
+  "123": {
+    "name": "Cedriel",
+    "codename": "cedriel",
+    "rarity": "common",
+    "availability": "for_event",
+    "safe": true
+  },
+  "124": {
+    "name": "Кай",
+    "codename": "phoenix_lvl3",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "125": {
+    "name": "Rory",
+    "codename": "rory",
+    "rarity": "rare",
+    "availability": "for_event",
+    "safe": true
+  },
+  "126": {
+    "name": "Дорин",
+    "codename": "berserk_lvl3",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "127": {
+    "name": "Aelita",
+    "codename": "aelita",
+    "rarity": "rare",
+    "availability": "for_event",
+    "safe": true
+  },
+  "128": {
+    "name": "Sarissa",
+    "codename": "sarissa",
+    "rarity": "epic",
+    "availability": "for_event",
+    "safe": true
+  },
+  "129": {
+    "name": "Arabella",
+    "codename": "arabella",
+    "rarity": "common",
+    "availability": "for_event",
+    "safe": true
+  },
+  "130": {
+    "name": "Chainkiss",
+    "codename": "chainkiss",
+    "rarity": "legendary",
+    "availability": "for_event",
+    "safe": true
+  },
+  "131": {
+    "name": "Colette",
+    "codename": "colette",
+    "rarity": "legendary",
+    "availability": "for_event",
+    "safe": true
+  },
+  "132": {
+    "name": "Iris",
+    "codename": "iris",
+    "rarity": "uncommon",
+    "availability": "for_event",
+    "safe": true
+  },
+  "133": {
+    "name": "Roxanne",
+    "codename": "roxanne",
+    "rarity": "epic",
+    "availability": "for_event",
+    "safe": true
+  },
+  "134": {
+    "name": "Шанго",
+    "codename": "alive_totem_lvl3",
+    "rarity": "rare",
+    "availability": "not_available",
+    "safe": true
+  },
+  "135": {
+    "name": "Peonny",
+    "codename": "peonny",
+    "rarity": "legendary",
+    "availability": "for_event",
+    "safe": true
+  },
+  "136": {
+    "name": "Laura and Dora",
+    "codename": "laura_and_dora",
+    "rarity": "common",
+    "availability": "for_event",
+    "safe": true
+  },
+  "137": {
+    "name": "Polly",
+    "codename": "polly",
+    "rarity": "epic",
+    "availability": "for_event",
+    "safe": true
+  },
+  "138": {
+    "name": "Хисек",
+    "codename": "mantis_lvl3",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "139": {
+    "name": "Thanata",
+    "codename": "thanata",
+    "rarity": "legendary",
+    "availability": "for_event",
+    "safe": true
+  },
+  "140": {
+    "name": "Marla",
+    "codename": "marla",
+    "rarity": "uncommon",
+    "availability": "for_event",
+    "safe": true
+  },
+  "141": {
+    "name": "Виллано",
+    "codename": "alchemist_lvl3",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "142": {
+    "name": "Крок",
+    "codename": "croco_lvl3",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "143": {
+    "name": "Lamyris",
+    "codename": "lamyris",
+    "rarity": "epic",
+    "availability": "for_event",
+    "safe": true
+  },
+  "144": {
+    "name": "Электра",
+    "codename": "hair_girl_lvl3",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "145": {
+    "name": "Шершах",
+    "codename": "rakshas_lvl3",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "146": {
+    "name": "Норман",
+    "codename": "goblin_lvl3",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "147": {
+    "name": "Конан",
+    "codename": "chief_lvl3",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "148": {
+    "name": "Fifi",
+    "codename": "fifi",
+    "rarity": "legendary",
+    "availability": "for_event",
+    "safe": true
+  },
+  "149": {
+    "name": "Corvina",
+    "codename": "corvina",
+    "rarity": "common",
+    "availability": "for_event",
+    "safe": true
+  },
+  "500": {
+    "name": "Irene",
+    "codename": "knight_girl_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": false,
+    "rarities_seen": [
+      "common",
+      "uncommon"
+    ]
+  },
+  "501": {
+    "name": "Slayer Lvl1",
+    "codename": "slayer_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": false,
+    "rarities_seen": [
+      "common",
+      "uncommon"
+    ]
+  },
+  "502": {
+    "name": "Bard Lvl1",
+    "codename": "bard_lvl1",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "503": {
+    "name": "Chaos Mage Lvl1",
+    "codename": "chaos_mage_lvl1",
+    "rarity": "epic",
+    "availability": "not_available",
+    "safe": true
+  },
+  "504": {
+    "name": "Angel Lvl1",
+    "codename": "angel_lvl1",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "508": {
+    "name": "Keres",
+    "codename": "keres",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "509": {
+    "name": "Constance",
+    "codename": "constance",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "510": {
+    "name": "Zombie Lvl1",
+    "codename": "zombie_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "511": {
+    "name": "Skeleton Lvl1",
+    "codename": "skeleton_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "512": {
+    "name": "Skeleton Archer Lvl1",
+    "codename": "skeleton_archer_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "513": {
+    "name": "Necromancer Lvl1",
+    "codename": "necromancer_lvl1",
+    "rarity": "rare",
+    "availability": "not_available",
+    "safe": true
+  },
+  "514": {
+    "name": "Zombie Lvl1",
+    "codename": "zombie_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "515": {
+    "name": "Knight Girl Lvl1",
+    "codename": "knight_girl_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "516": {
+    "name": "Angel Lvl1",
+    "codename": "angel_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "517": {
+    "name": "Knight Girl Lvl1",
+    "codename": "knight_girl_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "518": {
+    "name": "Ripley",
+    "codename": "ripley",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "535": {
+    "name": "Supernova",
+    "codename": "supernova",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "537": {
+    "name": "Alice",
+    "codename": "alice",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "552": {
+    "name": "Erumi",
+    "codename": "erumi",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1000": {
+    "name": "Tesla Lvl1",
+    "codename": "tesla_lvl1",
+    "rarity": "rare",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1001": {
+    "name": "Dragon Lvl3",
+    "codename": "dragon_lvl3",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1002": {
+    "name": "Zombie Lvl1",
+    "codename": "zombie_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1003": {
+    "name": "Totem Lvl1",
+    "codename": "totem_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1004": {
+    "name": "Recruit Owl",
+    "codename": "recruit_owl",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1005": {
+    "name": "Mushroom Lvl1",
+    "codename": "mushroom_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1006": {
+    "name": "Recruit Demon",
+    "codename": "recruit_demon",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1007": {
+    "name": "Bone Hunter Lvl1",
+    "codename": "bone_hunter_lvl1",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1008": {
+    "name": "Recruit Mummy",
+    "codename": "recruit_mummy",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1009": {
+    "name": "Tomb Lvl1",
+    "codename": "tomb_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1010": {
+    "name": "Zombie Lvl1",
+    "codename": "zombie_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1011": {
+    "name": "Orb Lvl1",
+    "codename": "orb_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1012": {
+    "name": "Orb Lvl1",
+    "codename": "orb_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1013": {
+    "name": "Orb Lvl1",
+    "codename": "orb_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1014": {
+    "name": "Orb Lvl1",
+    "codename": "orb_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1015": {
+    "name": "Summon Puppet",
+    "codename": "summon_puppet",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1016": {
+    "name": "Mushroom Lvl1",
+    "codename": "mushroom_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1017": {
+    "name": "Dragon Lvl3",
+    "codename": "dragon_lvl3",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1018": {
+    "name": "Dragon Lvl3",
+    "codename": "dragon_lvl3",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1019": {
+    "name": "Spider",
+    "codename": "spider",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1020": {
+    "name": "Jester Lvl1",
+    "codename": "jester_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1021": {
+    "name": "Phoenix Statue",
+    "codename": "phoenix_statue",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1022": {
+    "name": "Mulan Dragon",
+    "codename": "mulan_dragon",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1023": {
+    "name": "Totem Lvl1",
+    "codename": "totem_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1024": {
+    "name": "Totem Lvl1",
+    "codename": "totem_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1025": {
+    "name": "Totem Lvl1",
+    "codename": "totem_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1026": {
+    "name": "Totem Lvl1",
+    "codename": "totem_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1027": {
+    "name": "Totem Lvl1",
+    "codename": "totem_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1028": {
+    "name": "Totem Lvl1",
+    "codename": "totem_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1029": {
+    "name": "Totem Lvl1",
+    "codename": "totem_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1030": {
+    "name": "Recruit Wolf",
+    "codename": "recruit_wolf",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1031": {
+    "name": "Recruit Wolf",
+    "codename": "recruit_wolf",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1032": {
+    "name": "Mushroom Lvl1",
+    "codename": "mushroom_lvl1",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1033": {
+    "name": "Mushroom Lvl1",
+    "codename": "mushroom_lvl1",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1034": {
+    "name": "Mushroom Lvl1",
+    "codename": "mushroom_lvl1",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1035": {
+    "name": "Mushroom Lvl1",
+    "codename": "mushroom_lvl1",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1036": {
+    "name": "Mushroom Lvl1",
+    "codename": "mushroom_lvl1",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1037": {
+    "name": "Mushroom Lvl1",
+    "codename": "mushroom_lvl1",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1038": {
+    "name": "Mushroom Lvl1",
+    "codename": "mushroom_lvl1",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1039": {
+    "name": "Mushroom Lvl1",
+    "codename": "mushroom_lvl1",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1040": {
+    "name": "Mushroom Lvl1",
+    "codename": "mushroom_lvl1",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1041": {
+    "name": "Mushroom Lvl1",
+    "codename": "mushroom_lvl1",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1042": {
+    "name": "Mushroom Lvl1",
+    "codename": "mushroom_lvl1",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1043": {
+    "name": "Mushroom Lvl1",
+    "codename": "mushroom_lvl1",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1044": {
+    "name": "Orb Lvl1",
+    "codename": "orb_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1045": {
+    "name": "Orb Lvl1",
+    "codename": "orb_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1046": {
+    "name": "Orb Lvl1",
+    "codename": "orb_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1047": {
+    "name": "Orb Lvl1",
+    "codename": "orb_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1048": {
+    "name": "Orb Lvl1",
+    "codename": "orb_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1049": {
+    "name": "Tesla Lvl1",
+    "codename": "tesla_lvl1",
+    "rarity": "rare",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1050": {
+    "name": "Tesla Lvl1",
+    "codename": "tesla_lvl1",
+    "rarity": "rare",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1051": {
+    "name": "Tesla Lvl1",
+    "codename": "tesla_lvl1",
+    "rarity": "rare",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1052": {
+    "name": "Tesla Lvl1",
+    "codename": "tesla_lvl1",
+    "rarity": "rare",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1053": {
+    "name": "Tesla Lvl1",
+    "codename": "tesla_lvl1",
+    "rarity": "rare",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1054": {
+    "name": "Tesla Lvl1",
+    "codename": "tesla_lvl1",
+    "rarity": "rare",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1055": {
+    "name": "Tesla Lvl1",
+    "codename": "tesla_lvl1",
+    "rarity": "rare",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1056": {
+    "name": "Present",
+    "codename": "present",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1057": {
+    "name": "Present",
+    "codename": "present",
+    "rarity": "uncommon",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1058": {
+    "name": "Bone Hunter Lvl1",
+    "codename": "bone_hunter_lvl1",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1059": {
+    "name": "Bone Hunter Lvl1",
+    "codename": "bone_hunter_lvl1",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1060": {
+    "name": "Bone Hunter Lvl1",
+    "codename": "bone_hunter_lvl1",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1061": {
+    "name": "Bone Hunter Lvl1",
+    "codename": "bone_hunter_lvl1",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1062": {
+    "name": "Bone Hunter Lvl1",
+    "codename": "bone_hunter_lvl1",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1063": {
+    "name": "Bone Hunter Lvl1",
+    "codename": "bone_hunter_lvl1",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1064": {
+    "name": "Bone Hunter Lvl1",
+    "codename": "bone_hunter_lvl1",
+    "rarity": "legendary",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1065": {
+    "name": "Recruit Fan",
+    "codename": "recruit_fan",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1066": {
+    "name": "Zombie Lvl1",
+    "codename": "zombie_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1067": {
+    "name": "Zombie Lvl1",
+    "codename": "zombie_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1068": {
+    "name": "Zombie Lvl1",
+    "codename": "zombie_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1069": {
+    "name": "Zombie Lvl1",
+    "codename": "zombie_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1070": {
+    "name": "Zombie Lvl1",
+    "codename": "zombie_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1071": {
+    "name": "Zombie Lvl1",
+    "codename": "zombie_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1072": {
+    "name": "Jester Lvl1",
+    "codename": "jester_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1073": {
+    "name": "Jester Lvl1",
+    "codename": "jester_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1074": {
+    "name": "Jester Lvl1",
+    "codename": "jester_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1075": {
+    "name": "Jester Lvl1",
+    "codename": "jester_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1076": {
+    "name": "Jester Lvl1",
+    "codename": "jester_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1077": {
+    "name": "Jester Lvl1",
+    "codename": "jester_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1078": {
+    "name": "Jester Lvl1",
+    "codename": "jester_lvl1",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  },
+  "1079": {
+    "name": "Recruit Buzzy",
+    "codename": "recruit_buzzy",
+    "rarity": "common",
+    "availability": "not_available",
+    "safe": true
+  }
+}
