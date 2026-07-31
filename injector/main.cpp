@@ -1,6 +1,11 @@
 #include "injector.h"
+#include "launcher.h"
 #include <stdio.h>
 #include <tlhelp32.h>
+#include <shlobj.h>
+#include <string>
+#include <fstream>
+#include <iostream>
 
 static DWORD FindProcessByName(LPCWSTR name) {
     HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -23,64 +28,150 @@ static DWORD FindProcessByName(LPCWSTR name) {
     return pid;
 }
 
+static std::wstring ConfigPath() {
+    wchar_t appData[MAX_PATH] = {};
+    SHGetFolderPathW(NULL, CSIDL_LOCAL_APPDATA, NULL, SHGFP_TYPE_CURRENT, appData);
+    return std::wstring(appData) + L"\\EL_Native\\launcher.ini";
+}
+
+static std::wstring ReadStoredFolder() {
+    std::wifstream file(ConfigPath().c_str());
+    std::wstring folder;
+    if (file) std::getline(file, folder);
+    return folder;
+}
+
+static bool WriteStoredFolder(const std::wstring& folder) {
+    const std::wstring path = ConfigPath();
+    const std::wstring parent = path.substr(0, path.find_last_of(L'\\'));
+    CreateDirectoryW(parent.c_str(), NULL);
+    std::wofstream file(path.c_str(), std::ios::trunc);
+    if (!file) return false;
+    file << folder << L"\n";
+    return true;
+}
+
+static std::string Narrow(const std::wstring& value) {
+    if (value.empty()) return std::string();
+    int size = WideCharToMultiByte(CP_UTF8, 0, value.c_str(), -1, NULL, 0, NULL, NULL);
+    std::string output(size > 0 ? size : 0, '\0');
+    if (!output.empty()) {
+        WideCharToMultiByte(CP_UTF8, 0, value.c_str(), -1, &output[0], size, NULL, NULL);
+        if (!output.empty() && output.back() == '\0') output.pop_back();
+    }
+    return output;
+}
+
+static std::wstring JoinPath(const std::wstring& left, const wchar_t* right) {
+    return left + (left.empty() || left.back() == L'\\' ? L"" : L"\\") + right;
+}
+
+static void LaunchLog(const std::wstring& folder, const wchar_t* message) {
+    std::wofstream file(JoinPath(folder, L"el_native_launcher.log").c_str(), std::ios::app);
+    if (file) file << message << L"\n";
+    wprintf(L"%s\n", message);
+}
+
+struct SteamEnv {
+    wchar_t appId[64] = {};
+    wchar_t gameId[64] = {};
+    DWORD appIdLength = 0;
+    DWORD gameIdLength = 0;
+    bool hadAppId = false;
+    bool hadGameId = false;
+};
+
+static SteamEnv SetSteamEnvironment(const std::wstring& appId) {
+    SteamEnv saved;
+    saved.appIdLength = GetEnvironmentVariableW(L"SteamAppId", saved.appId, 64);
+    saved.gameIdLength = GetEnvironmentVariableW(L"SteamGameId", saved.gameId, 64);
+    saved.hadAppId = saved.appIdLength != 0;
+    saved.hadGameId = saved.gameIdLength != 0;
+    SetEnvironmentVariableW(L"SteamAppId", appId.c_str());
+    SetEnvironmentVariableW(L"SteamGameId", appId.c_str());
+    return saved;
+}
+
+static void RestoreSteamEnvironment(const SteamEnv& saved) {
+    SetEnvironmentVariableW(L"SteamAppId", saved.hadAppId ? saved.appId : NULL);
+    SetEnvironmentVariableW(L"SteamGameId", saved.hadGameId ? saved.gameId : NULL);
+}
+
 int wmain(int argc, wchar_t* argv[]) {
-    if (argc < 2) {
-        wprintf(L"Usage:\n");
-        wprintf(L"  Mode 1 (create+inject): injector.exe <game_exe_path> <dll_path>\n");
-        wprintf(L"  Mode 2 (attach+inject): injector.exe <dll_path>\n");
+    bool configureFlag = false;
+    for (int i = 1; i < argc; ++i) if (_wcsicmp(argv[i], L"--configure") == 0) configureFlag = true;
+
+    std::wstring gameFolder = ReadStoredFolder();
+    const bool shiftHeld = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+    const LaunchMode mode = ResolveLaunchMode(!gameFolder.empty(), shiftHeld, configureFlag);
+    if (mode == LaunchMode::Configure) {
+        wprintf(L"Game folder (contains Everlusting Life.exe, GameAssembly.dll, UnityPlayer.dll): ");
+        std::wstring input;
+        std::getline(std::wcin, input);
+        if (!input.empty()) gameFolder = input;
+    }
+
+    std::string error;
+    if (!ValidateGameFolder(Narrow(gameFolder), "Everlusting Life.exe", error)) {
+        wprintf(L"Configuration error: %S\n", error.c_str());
         return 1;
     }
+    if (!WriteStoredFolder(gameFolder)) {
+        wprintf(L"Configuration could not be saved\n");
+        return 1;
+    }
+
+    const std::wstring gameExe = JoinPath(gameFolder, L"Everlusting Life.exe");
+    const std::wstring dllPath = argc > 1 && argv[1][0] != L'-' ? argv[1] : JoinPath(gameFolder, L"el_native.dll");
+    if (GetFileAttributesW(dllPath.c_str()) == INVALID_FILE_ATTRIBUTES) {
+        wprintf(L"DLL missing: %s\n", dllPath.c_str());
+        return 1;
+    }
+
+    LaunchLog(gameFolder, L"[launcher] validated game folder");
+
+    const std::string steamAppId = DetectSteamAppId(Narrow(gameFolder));
+    SteamEnv savedSteamEnv;
+    bool steamEnvSet = false;
+    if (!steamAppId.empty()) {
+        LaunchLog(gameFolder, L"[launcher] Steam app id detected; exporting Steam context");
+        const std::wstring appId(steamAppId.begin(), steamAppId.end());
+        savedSteamEnv = SetSteamEnvironment(appId);
+        steamEnvSet = true;
+        LaunchLog(gameFolder, L"[launcher] SteamAppId/SteamGameId exported to child");
+    } else {
+        LaunchLog(gameFolder, L"[launcher] standalone folder detected; no Steam context required");
+    }
+    LaunchLog(gameFolder, L"[launcher] creating suspended process");
 
     if (!EnableDebugPrivilege()) {
         wprintf(L"Warning: Could not enable SeDebugPrivilege\n");
     }
 
-    if (argc == 2) {
-        DWORD pid = FindProcessByName(L"Everlusting Life.exe");
-        if (pid == 0) {
-            wprintf(L"Error: Everlusting Life.exe not found. Is the game running?\n");
-            return 1;
-        }
-
-        printf("Found process PID %lu, injecting...\n", pid);
-
-        HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
-        if (!hProcess) {
-            wprintf(L"OpenProcess failed: %lu\n", GetLastError());
-            return 1;
-        }
-
-        BOOL ok = InjectDLL(hProcess, argv[1]);
-        CloseHandle(hProcess);
-
-        if (!ok) {
-            printf("Injection failed\n");
-            return 1;
-        }
-
-        printf("DLL injected into running process\n");
-        return 0;
-    }
-
     STARTUPINFOW si = { sizeof(si) };
-    PROCESS_INFORMATION pi;
+    PROCESS_INFORMATION pi = {};
 
-    if (!CreateProcessW(argv[1], NULL, NULL, NULL, FALSE,
-        CREATE_SUSPENDED, NULL, NULL, &si, &pi)) {
+    if (!CreateProcessW(gameExe.c_str(), NULL, NULL, NULL, FALSE,
+        CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT, NULL, gameFolder.c_str(), &si, &pi)) {
+        if (steamEnvSet) RestoreSteamEnvironment(savedSteamEnv);
         wprintf(L"CreateProcessW failed: %lu\n", GetLastError());
         return 1;
     }
+    if (steamEnvSet) RestoreSteamEnvironment(savedSteamEnv);
 
     printf("Process created: PID %lu\n", pi.dwProcessId);
 
-    if (!InjectDLL(pi.hProcess, argv[2])) {
+    if (!InjectDLL(pi.hProcess, dllPath.c_str())) {
         printf("Injection failed\n");
+        ResumeThread(pi.hThread);
         TerminateProcess(pi.hProcess, 1);
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
         return 1;
     }
 
     ResumeThread(pi.hThread);
-    printf("DLL injected, thread resumed\n");
+    LaunchLog(gameFolder, L"[launcher] DLL injected and process resumed");
 
     CloseHandle(pi.hThread);
     CloseHandle(pi.hProcess);
