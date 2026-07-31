@@ -103,18 +103,13 @@ void TracerFeature::Init() {
         "Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units",
         "UnitCore", "get_ArmySide", 0);
 
-    void* cv = ResolveMethodOrFallback("Assembly-CSharp",
-        "AutoChess.CoreGameplay.Fight.Units", "BattleUnit",
-        "GetCurrentValue", 1);
     void* sv = ResolveMethodOrFallback("Assembly-CSharp",
         "AutoChess.CoreGameplay.Fight.Units", "BattleUnit",
         "GetStatValue", 1);
 
-    LOG("[FEATURE] Tracer: GetCurrentValue=%p GetStatValue=%p get_ArmySide=%p", cv, sv, Resolved_GetArmySide2);
-
-    if (cv && MH_CreateHook(cv, &GetCurrentValueHook, (LPVOID*)&Original_GetCurrentValue) == MH_OK && MH_EnableHook(cv) == MH_OK)
-        LOG("[FEATURE] Tracer: GetCurrentValue hooked @ %p", cv);
-    else LOG("[FEATURE] Tracer: GetCurrentValue fail");
+    // GetCurrentValue is owned by EnergyAttackSpeed so it can report the
+    // baseline/applied pair without competing MinHook installations.
+    LOG("[FEATURE] Tracer: GetStatValue=%p get_ArmySide=%p", sv, Resolved_GetArmySide2);
 
     if (sv && MH_CreateHook(sv, &GetStatValueHook, (LPVOID*)&Original_GetStatValue) == MH_OK && MH_EnableHook(sv) == MH_OK)
         LOG("[FEATURE] Tracer: GetStatValue hooked @ %p", sv);
@@ -122,7 +117,7 @@ void TracerFeature::Init() {
 }
 
 void TracerFeature::OnUpdate() {
-    s_dumpStats = enabled && m_dumpStats && Original_GetCurrentValue && Original_GetStatValue;
+    s_dumpStats = enabled && m_dumpStats && Original_GetStatValue;
     if (s_dumpStats) {
         s_frameCounter++;
         // Auto-save every ~5 seconds (300 frames at 60fps) or on new stat
@@ -135,7 +130,7 @@ void TracerFeature::OnUpdate() {
 
 void TracerFeature::OnMenu() {
     if (!enabled) return;
-    if (!Original_GetCurrentValue || !Original_GetStatValue) {
+    if (!Original_GetStatValue) {
         ImGui::TextColored(ImVec4(1, 0, 0, 1), "hook unavailable"); return;
     }
     ImGui::Checkbox("Dump StatType values", &m_dumpStats);
