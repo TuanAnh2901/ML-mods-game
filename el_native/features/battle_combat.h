@@ -12,4 +12,5 @@ struct BattleCombatFeature : Feature {
     float m_defenseMult = 1.0f;
     bool m_godMode = false;
     int m_playerSide = 1;
+    bool m_trackStats = false;
 };

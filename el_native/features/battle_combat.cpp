@@ -1,9 +1,11 @@
 #include "battle_combat.h"
 #include "../framework.h"
 #include "../il2cpp_resolve.h"
+#include "../combat_runtime.h"
 #include "../../minhook/include/MinHook.h"
 #include "imgui.h"
 #include <cstdint>
+#include <cstdio>
 
 // Battle Combat — S-tier method hooks with side detection.
 //
@@ -36,18 +38,72 @@ static float s_healMult = 1.0f;
 static float s_offenseMult = 1.0f;
 static float s_defenseMult = 1.0f;
 static int s_playerSide = 1;
+static bool s_trackStats = false;
+static int s_compareFrameCounter = 0;
+
+struct CombatCompareEntry {
+    void* unit;
+    int side;
+    float healBefore, healApplied;
+    float offenseBefore, offenseApplied;
+    float defenseBefore, defenseApplied;
+    int healCalls, offenseCalls, defenseCalls;
+};
+static CombatCompareEntry s_compare[128] = {};
+static int s_compareCount = 0;
+
+static int RuntimeSide(void* unit) {
+    for (const auto& snapshot : GlobalCombatRuntime().Snapshot()) {
+        if (snapshot.pointer == reinterpret_cast<std::uintptr_t>(unit))
+            return snapshot.side == ArmySide::Player ? s_playerSide : snapshot.side == ArmySide::Enemy ? 0 : -1;
+    }
+    if (!Resolved_Side) return -1;
+    const ArmySide side = ArmySideFromRaw(Resolved_Side(unit, nullptr), RuntimeLocalArmySide());
+    return side == ArmySide::Player ? s_playerSide : side == ArmySide::Enemy ? 0 : -1;
+}
+
+static CombatCompareEntry* FindCombatEntry(void* unit, int side) {
+    if (!s_trackStats) return nullptr;
+    for (int i = 0; i < s_compareCount; ++i) {
+        if (s_compare[i].unit == unit) { s_compare[i].side = side; return &s_compare[i]; }
+    }
+    if (s_compareCount >= 128) return nullptr;
+    s_compare[s_compareCount].unit = unit;
+    s_compare[s_compareCount].side = side;
+    return &s_compare[s_compareCount++];
+}
+
+static void SaveCombatCompare() {
+    FILE* file = fopen("el_native_combat_compare.txt", "w");
+    if (!file) return;
+    fprintf(file, "# BattleUnit combat comparison (last observed value)\n");
+    fprintf(file, "# Unit | Side | Heal before->applied | Offense before->applied | Defense before->applied\n");
+    for (int i = 0; i < s_compareCount; ++i) {
+        const auto& entry = s_compare[i];
+        fprintf(file, "%p | %d | %.4f->%.4f (%d) | %.4f->%.4f (%d) | %.4f->%.4f (%d)\n",
+            entry.unit, entry.side, entry.healBefore, entry.healApplied, entry.healCalls,
+            entry.offenseBefore, entry.offenseApplied, entry.offenseCalls,
+            entry.defenseBefore, entry.defenseApplied, entry.defenseCalls);
+    }
+    fclose(file);
+}
 
 static void __fastcall HealHook(void* self, void* source, float healAmount, void* mi) {
+    const float baseline = healAmount;
+    int side = -1;
     if (s_active && Resolved_Side) {
-        int side = Resolved_Side(self, nullptr);
+        side = RuntimeSide(self);
         if (side == s_playerSide) healAmount *= s_healMult;
+    }
+    if (auto* entry = FindCombatEntry(self, side)) {
+        entry->healBefore = baseline; entry->healApplied = healAmount; ++entry->healCalls;
     }
     Original_Heal(self, source, healAmount, mi);
 }
 
 static bool __fastcall CheckDeathHook(void* self, void* source, bool dispose, void* mi) {
     if (s_godMode && Resolved_Side) {
-        int side = Resolved_Side(self, nullptr);
+        int side = RuntimeSide(self);
         if (side == s_playerSide) return false; // never die
     }
     return Original_CheckDeath(self, source, dispose, mi);
@@ -55,18 +111,30 @@ static bool __fastcall CheckDeathHook(void* self, void* source, bool dispose, vo
 
 static float __fastcall GetOffenseAmplifyHook(void* self, int32_t dmgType, void* mi) {
     float val = Original_GetOffenseAmplify(self, dmgType, mi);
+    const float baseline = val;
+    int side = -1;
     if (s_active && Resolved_Side && s_offenseMult != 1.0f) {
-        int side = Resolved_Side(self, nullptr);
+        side = RuntimeSide(self);
         if (side == s_playerSide) val *= s_offenseMult;
+    }
+    else if (Resolved_Side) side = RuntimeSide(self);
+    if (auto* entry = FindCombatEntry(self, side)) {
+        entry->offenseBefore = baseline; entry->offenseApplied = val; ++entry->offenseCalls;
     }
     return val;
 }
 
 static float __fastcall GetProtectionAmplifyHook(void* self, int32_t dmgType, void* mi) {
     float val = Original_GetProtectionAmplify(self, dmgType, mi);
+    const float baseline = val;
+    int side = -1;
     if (s_active && Resolved_Side && s_defenseMult != 1.0f) {
-        int side = Resolved_Side(self, nullptr);
+        side = RuntimeSide(self);
         if (side == s_playerSide) val *= s_defenseMult;
+    }
+    else if (Resolved_Side) side = RuntimeSide(self);
+    if (auto* entry = FindCombatEntry(self, side)) {
+        entry->defenseBefore = baseline; entry->defenseApplied = val; ++entry->defenseCalls;
     }
     return val;
 }
@@ -100,7 +168,12 @@ void BattleCombatFeature::OnUpdate() {
     s_healMult = enabled ? m_healMult : 1.0f;
     s_offenseMult = enabled ? m_offenseMult : 1.0f;
     s_defenseMult = enabled ? m_defenseMult : 1.0f;
-    s_playerSide = m_playerSide;
+    s_playerSide = RuntimeLocalArmySide();
+    s_trackStats = enabled && m_trackStats;
+    if (s_trackStats && ++s_compareFrameCounter >= 300) {
+        SaveCombatCompare();
+        s_compareFrameCounter = 0;
+    }
 }
 
 void BattleCombatFeature::OnMenu() {
@@ -112,6 +185,11 @@ void BattleCombatFeature::OnMenu() {
     ImGui::SliderFloat("Offense Amplify", &m_offenseMult, 0.0f, 10.0f, "%.1fx");
     ImGui::SliderFloat("Defense Amplify", &m_defenseMult, 0.0f, 10.0f, "%.1fx");
     ImGui::InputInt("Player Side ID", &m_playerSide);
+    ImGui::Checkbox("Track per-character combat stats", &m_trackStats);
+    ImGui::Text("Tracked characters: %d", s_compareCount);
+    if (m_trackStats)
+        ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1),
+            "Writing heal/offense/defense comparisons to el_native_combat_compare.txt");
     if (m_godMode)
         ImGui::TextColored(ImVec4(0, 1, 0, 1), "Player units cannot die");
 }

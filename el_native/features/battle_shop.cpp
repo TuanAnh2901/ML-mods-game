@@ -69,15 +69,13 @@ static void __fastcall AddSlotHook(void* self, void* mi) {
             Original_AddSlot(self, mi);
 }
 
-// ServerPlayerParticipantController::AddCoinsAfterBattle(BattleResultEnum, int)
-// Force matchResult = Win (0) so player always gets winner coins.
-typedef void(__fastcall* AddCoinsAfterBattle_t)(void* self, int32_t matchResult, int32_t round, void* mi);
-static AddCoinsAfterBattle_t Original_ServerAddCoins = nullptr;
-static bool s_pvpForceWinCoins = false;
-
-static void __fastcall AddCoinsAfterBattleHook(void* self, int32_t matchResult, int32_t round, void* mi) {
-    if (s_pvpForceWinCoins) matchResult = 0; // 0 = Win
-    Original_ServerAddCoins(self, matchResult, round, mi);
+// PvP coins are observational only: read ServerParticipant::get_Coins.
+typedef int32_t(__fastcall* GetCoins_t)(void* self, void* mi);
+static GetCoins_t Original_GetCoins = nullptr;
+static int32_t s_pvpCoins = 0;
+static int32_t __fastcall GetCoinsHook(void* self, void* mi) {
+    s_pvpCoins = Original_GetCoins ? Original_GetCoins(self, mi) : 0;
+    return s_pvpCoins;
 }
 
 // ── PVP: LocalServerEmulator event overrides ──────────────────────────────
@@ -115,8 +113,8 @@ void BattleShopFeature::Init() {
     // PVP: extra slots
     h("AutoChess.CoreGameplay.Participant", "ServerParticipant", "AddSlot", 0, (LPVOID*)&Original_AddSlot, &AddSlotHook);
 
-    // PVP: force win coins
-    h("AutoChess.CoreGameplay.Participant", "ServerPlayerParticipantController", "AddCoinsAfterBattle", 2, (LPVOID*)&Original_ServerAddCoins, &AddCoinsAfterBattleHook);
+    // PVP: read-only coins
+    h("AutoChess.CoreGameplay.Participant", "ServerParticipant", "get_Coins", 0, (LPVOID*)&Original_GetCoins, &GetCoinsHook);
 
     // PVP: free slot price override (server events)
     h("AutoChess.LocalServer", "LocalServerEmulator", "InvokeOnSlotsPriceUpdate", 3, (LPVOID*)&Original_InvokeOnSlotsPriceUpdate, &InvokeOnSlotsPriceUpdateHook);
@@ -127,7 +125,6 @@ void BattleShopFeature::OnUpdate() {
     s_forceFreeSlots = enabled && m_freeSlots;
     s_sellMult = enabled ? m_sellMult : 1.0f;
     s_pvpExtraSlots = enabled && m_pvpExtraSlots;
-    s_pvpForceWinCoins = enabled && m_pvpForceWinCoins;
     s_pvpFreeSlots = enabled && m_pvpFreeSlots;
 }
 
@@ -140,11 +137,9 @@ void BattleShopFeature::OnMenu() {
 
     ImGui::Separator();
     ImGui::Text("-- PVP (all modes) --");
-    ImGui::Checkbox("Force winner coins (PVP)", &m_pvpForceWinCoins);
+    ImGui::Text("PvP coins (read-only): %d", s_pvpCoins);
     ImGui::Checkbox("Extra slots (PVP)", &m_pvpExtraSlots);
     ImGui::Checkbox("Free slot price (PVP)", &m_pvpFreeSlots);
-    if (m_pvpForceWinCoins)
-        ImGui::TextColored(ImVec4(0, 1, 0, 1), "Always receive winner coin amount");
 }
 
 static BattleShopFeature g_bs;

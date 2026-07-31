@@ -7,5 +7,5 @@ struct AntiCheatFeature : Feature {
     void OnUpdate() override;
     void OnMenu() override;
 
-    bool m_bypass = false;
+    bool m_showDiagnostics = true;
 };

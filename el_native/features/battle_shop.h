@@ -15,5 +15,5 @@ struct BattleShopFeature : Feature {
     bool m_pvpFreeRefresh = false;
     bool m_pvpFreeSlots = false;
     bool m_pvpExtraSlots = false;
-    bool m_pvpForceWinCoins = false;
+    bool m_pvpReadOnlyCoins = true;
 };
