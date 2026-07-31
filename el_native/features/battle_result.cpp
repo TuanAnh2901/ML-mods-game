@@ -71,15 +71,34 @@ static const char* ReadIl2CppString(void* strPtr) {
     return buf;
 }
 
+static bool CopyIl2CppString(void* strPtr, char* out, size_t capacity) {
+    if (!strPtr || !out || capacity < 2) return false;
+    __try {
+        int32_t len = *(int32_t*)((char*)strPtr + 8);
+        if (len <= 0 || len >= static_cast<int32_t>(capacity) || len > 128) return false;
+        wchar_t* chars = (wchar_t*)((char*)strPtr + 12);
+        for (int32_t i = 0; i < len; ++i) out[i] = (char)(chars[i] & 0xFF);
+        out[len] = 0;
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        out[0] = 0;
+        return false;
+    }
+}
+
 static void __fastcall ApplyBattleResultHook(void* self, void* battleId, void* winnerId, void* unitUids, void* mi) {
     if (!Original_ApplyBattleResult) return;
     void* localIdObject = CurrentLocalPlayerIdObject();
     if (s_forceWin && (localIdObject || s_localPlayerId[0])) {
-        const char* winner = ReadIl2CppString(winnerId);
-        const char* localId = localIdObject ? ReadIl2CppString(localIdObject) : s_localPlayerId;
-        if (winner && localIdObject && localId && localId[0] && strcmp(winner, localId) != 0) {
+        char winner[256] = {};
+        char localId[256] = {};
+        const bool winnerOk = CopyIl2CppString(winnerId, winner, sizeof(winner));
+        const bool localOk = localIdObject
+            ? CopyIl2CppString(localIdObject, localId, sizeof(localId))
+            : (strncpy_s(localId, s_localPlayerId, _TRUNCATE) == 0 && localId[0]);
+        if (winnerOk && localOk && localIdObject && strcmp(winner, localId) != 0) {
             LOG("[FEATURE] BattleResult: LocalMatchData winner overridden");
-            winnerId = localIdObject;
+            if (localIdObject) winnerId = localIdObject;
         }
     }
     Original_ApplyBattleResult(self, battleId, winnerId, unitUids, mi);
@@ -142,12 +161,16 @@ static void __fastcall UpdateStreaksHook(void* self, int32_t result, void* mi) {
     bool isOurParticipant = local;
     if (!isOurParticipant && Original_GetUid) {
         void* localIdObj = CurrentLocalPlayerIdObject();
-        if (localIdObj) {
+        char uidStr[256] = {};
+        char localStr[256] = {};
+        const bool localIdOk = localIdObj
+            ? CopyIl2CppString(localIdObj, localStr, sizeof(localStr))
+            : (strncpy_s(localStr, s_localPlayerId, _TRUNCATE) == 0 && localStr[0]);
+        if (localIdOk) {
             __try {
                 void* uid = Original_GetUid(self, nullptr);
-                const char* uidStr = ReadIl2CppString(uid);
-                const char* localStr = ReadIl2CppString(localIdObj);
-                if (uidStr && localStr && strcmp(uidStr, localStr) == 0) {
+                if (CopyIl2CppString(uid, uidStr, sizeof(uidStr)) &&
+                    strcmp(uidStr, localStr) == 0) {
                     isOurParticipant = true;
                     LOG("[FEATURE] BattleResult: Tournament UID match (IsLocal was false)");
                 }
