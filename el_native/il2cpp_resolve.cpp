@@ -7,6 +7,8 @@
 
 #include <string>
 #include <unordered_map>
+#include <cstddef>
+#include <chrono>
 
 // ============================================================
 // IL2CPP export function pointer types
@@ -15,9 +17,17 @@ typedef void* (*il2cpp_domain_get_t)();
 typedef void** (*il2cpp_domain_get_assemblies_t)(void* domain, size_t* count);
 typedef void* (*il2cpp_assembly_get_image_t)(void* assembly);
 typedef const char* (*il2cpp_image_get_name_t)(void* image);
+typedef uint32_t (*il2cpp_image_get_class_count_t)(void* image);
+typedef void* (*il2cpp_image_get_class_t)(void* image, uint32_t index);
+typedef const char* (*il2cpp_class_get_name_t)(void* klass);
 typedef void* (*il2cpp_class_from_name_t)(void* image, const char* ns, const char* name);
 typedef void* (*il2cpp_class_get_method_from_name_t)(void* klass, const char* name, int paramCount);
 typedef void* (*il2cpp_method_get_pointer_t)(void* method);
+typedef void* (*il2cpp_class_get_parent_t)(void* klass);
+typedef void* (*il2cpp_class_get_fields_t)(void* klass, void** iter);
+typedef const char* (*il2cpp_field_get_name_t)(void* field);
+typedef int32_t (*il2cpp_field_get_offset_t)(void* field);
+typedef void* (*il2cpp_array_new_t)(void* elementClass, std::size_t length);
 
 // ============================================================
 // Resolved exports + base address (one-time init)
@@ -30,10 +40,19 @@ static struct {
     il2cpp_domain_get_assemblies_t  domain_get_assemblies;
     il2cpp_assembly_get_image_t     assembly_get_image;
     il2cpp_image_get_name_t         image_get_name;
+    il2cpp_image_get_class_count_t  image_get_class_count;
+    il2cpp_image_get_class_t        image_get_class;
+    il2cpp_class_get_name_t         class_get_name;
     il2cpp_class_from_name_t        class_from_name;
     il2cpp_class_get_method_from_name_t class_get_method_from_name;
     il2cpp_method_get_pointer_t     method_get_pointer;
+    il2cpp_class_get_parent_t       class_get_parent;
+    il2cpp_class_get_fields_t       class_get_fields;
+    il2cpp_field_get_name_t         field_get_name;
+    il2cpp_field_get_offset_t       field_get_offset;
+    il2cpp_array_new_t              array_new;
 } s_exports = { false, 0, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+static ULONGLONG s_lastExportAttempt = 0;
 
 // ============================================================
 // Thread-safe cache (SRW lock + unordered_map)
@@ -63,6 +82,9 @@ static std::string MakeKey(const char* ns, const char* cls,
 // ============================================================
 static void ResolveExports() {
     if (s_exports.initialized) return;
+    const ULONGLONG now = GetTickCount64();
+    if (s_lastExportAttempt && now - s_lastExportAttempt < 1000) return;
+    s_lastExportAttempt = now;
 
     HMODULE hGA = GetModuleHandleA("GameAssembly.dll");
     if (!hGA) {
@@ -80,14 +102,35 @@ static void ResolveExports() {
         (il2cpp_assembly_get_image_t)GetProcAddress(hGA, "il2cpp_assembly_get_image");
     s_exports.image_get_name =
         (il2cpp_image_get_name_t)GetProcAddress(hGA, "il2cpp_image_get_name");
+    s_exports.image_get_class_count =
+        (il2cpp_image_get_class_count_t)GetProcAddress(hGA, "il2cpp_image_get_class_count");
+    s_exports.image_get_class =
+        (il2cpp_image_get_class_t)GetProcAddress(hGA, "il2cpp_image_get_class");
+    s_exports.class_get_name =
+        (il2cpp_class_get_name_t)GetProcAddress(hGA, "il2cpp_class_get_name");
     s_exports.class_from_name =
         (il2cpp_class_from_name_t)GetProcAddress(hGA, "il2cpp_class_from_name");
     s_exports.class_get_method_from_name =
         (il2cpp_class_get_method_from_name_t)GetProcAddress(hGA, "il2cpp_class_get_method_from_name");
     s_exports.method_get_pointer =
         (il2cpp_method_get_pointer_t)GetProcAddress(hGA, "il2cpp_method_get_pointer");
+    s_exports.class_get_parent =
+        (il2cpp_class_get_parent_t)GetProcAddress(hGA, "il2cpp_class_get_parent");
+    s_exports.class_get_fields =
+        (il2cpp_class_get_fields_t)GetProcAddress(hGA, "il2cpp_class_get_fields");
+    s_exports.field_get_name =
+        (il2cpp_field_get_name_t)GetProcAddress(hGA, "il2cpp_field_get_name");
+    s_exports.field_get_offset =
+        (il2cpp_field_get_offset_t)GetProcAddress(hGA, "il2cpp_field_get_offset");
+    s_exports.array_new =
+        (il2cpp_array_new_t)GetProcAddress(hGA, "il2cpp_array_new");
 
-    s_exports.initialized = true;
+    // Some Unity builds expose the IL2CPP API a short time after the module
+    // handle becomes visible. Keep retrying until the metadata chain is
+    // complete instead of permanently freezing an early null lookup.
+    s_exports.initialized = s_exports.domain_get && s_exports.domain_get_assemblies &&
+        s_exports.assembly_get_image && s_exports.class_from_name &&
+        s_exports.class_get_method_from_name && s_exports.method_get_pointer;
 
     LOG("[RESOLVE] Exports: domain_get=%p assemblies=%p image=%p class_from_name=%p "
         "get_method=%p get_ptr=%p base=0x%llX",
@@ -95,6 +138,8 @@ static void ResolveExports() {
         s_exports.assembly_get_image, s_exports.class_from_name,
         s_exports.class_get_method_from_name, s_exports.method_get_pointer,
         s_exports.gameAssemblyBase);
+    if (!s_exports.initialized)
+        LOG("[RESOLVE] IL2CPP exports incomplete; retrying metadata discovery");
 }
 
 // ============================================================
@@ -147,16 +192,15 @@ void* ResolveMethod(const char* imageHint, const char* ns, const char* cls,
             void* klass = s_exports.class_from_name(image, ns, cls);
             if (!klass) continue;
 
-            void* methodInfo = s_exports.class_get_method_from_name(klass, method, argc);
-            if (!methodInfo) {
-                // Try with -1 (varargs / any param count)
-                if (argc >= 0)
-                    methodInfo = s_exports.class_get_method_from_name(klass, method, -1);
+            for (void* current = klass; current; current =
+                s_exports.class_get_parent ? s_exports.class_get_parent(current) : nullptr) {
+                void* methodInfo = s_exports.class_get_method_from_name(current, method, argc);
+                if (!methodInfo && argc >= 0)
+                    methodInfo = s_exports.class_get_method_from_name(current, method, -1);
+                if (!methodInfo) continue;
+                void* ptr = s_exports.method_get_pointer(methodInfo);
+                if (ptr) return ptr;
             }
-            if (!methodInfo) continue;
-
-            void* ptr = s_exports.method_get_pointer(methodInfo);
-            if (ptr) return ptr;
         }
     } else {
         // Minimal path: try corlib or first assembly
@@ -166,6 +210,124 @@ void* ResolveMethod(const char* imageHint, const char* ns, const char* cls,
     }
 
     return nullptr;
+}
+
+ResolvedMethod ResolveMethodInfoOrFallback(const char* imageHint,
+                                           const char* ns, const char* cls,
+                                           const char* method, int argc) {
+    ResolveExports();
+    if (s_exports.domain_get && s_exports.domain_get_assemblies &&
+        s_exports.assembly_get_image && s_exports.class_from_name &&
+        s_exports.class_get_method_from_name && s_exports.method_get_pointer) {
+        void* domain = s_exports.domain_get();
+        size_t count = 0;
+        void** assemblies = domain ? s_exports.domain_get_assemblies(domain, &count) : nullptr;
+        for (size_t i = 0; assemblies && i < count; ++i) {
+            void* image = s_exports.assembly_get_image(assemblies[i]);
+            if (!image) continue;
+            if (imageHint && *imageHint && s_exports.image_get_name) {
+                const char* imageName = s_exports.image_get_name(image);
+                if (!imageName || strcmp(imageName, imageHint) != 0) continue;
+            }
+            for (void* current = s_exports.class_from_name(image, ns, cls); current;
+                 current = s_exports.class_get_parent ? s_exports.class_get_parent(current) : nullptr) {
+                void* info = s_exports.class_get_method_from_name(current, method, argc);
+                if (!info && argc >= 0)
+                    info = s_exports.class_get_method_from_name(current, method, -1);
+                if (!info) continue;
+                void* pointer = s_exports.method_get_pointer(info);
+                if (pointer) return {pointer, info, false};
+            }
+        }
+    }
+    void* fallback = ResolveMethodOrFallback(imageHint, ns, cls, method, argc);
+    return {fallback, nullptr, fallback != nullptr};
+}
+
+int32_t ResolveFieldOffset(const char* imageHint, const char* ns,
+                           const char* cls, const char* field) {
+    ResolveExports();
+    if (!field || !*field || !s_exports.domain_get || !s_exports.domain_get_assemblies ||
+        !s_exports.assembly_get_image || !s_exports.class_from_name ||
+        !s_exports.class_get_parent || !s_exports.class_get_fields ||
+        !s_exports.field_get_name || !s_exports.field_get_offset) {
+        LOG("[RESOLVE] field %s.%s -> metadata traversal unavailable", cls ? cls : "?", field ? field : "?");
+        return -1;
+    }
+
+    void* domain = s_exports.domain_get();
+    if (!domain) return -1;
+    size_t assemblyCount = 0;
+    void** assemblies = s_exports.domain_get_assemblies(domain, &assemblyCount);
+    if (!assemblies) return -1;
+
+    for (size_t i = 0; i < assemblyCount; ++i) {
+        void* image = s_exports.assembly_get_image(assemblies[i]);
+        if (!image) continue;
+        if (imageHint && *imageHint && s_exports.image_get_name) {
+            const char* imageName = s_exports.image_get_name(image);
+            if (!imageName || strcmp(imageName, imageHint) != 0) continue;
+        }
+        void* requestedClass = s_exports.class_from_name(image, ns, cls);
+        // The extracted companion resolves fields by class name only. UI
+        // namespaces can move between builds while the field layout remains
+        // valid, so mirror that behavior when the exact namespace misses.
+        if (!requestedClass && s_exports.image_get_class_count &&
+            s_exports.image_get_class && s_exports.class_get_name) {
+            const uint32_t classCount = s_exports.image_get_class_count(image);
+            for (uint32_t ci = 0; ci < classCount; ++ci) {
+                void* candidate = s_exports.image_get_class(image, ci);
+                const char* candidateName = candidate ? s_exports.class_get_name(candidate) : nullptr;
+                if (candidateName && strcmp(candidateName, cls) == 0) {
+                    requestedClass = candidate;
+                    LOG("[RESOLVE] field %s.%s namespace fallback matched %s",
+                        cls, field, candidateName);
+                    break;
+                }
+            }
+        }
+        for (void* current = requestedClass; current;
+             current = s_exports.class_get_parent(current)) {
+            void* iter = nullptr;
+            while (void* candidate = s_exports.class_get_fields(current, &iter)) {
+                const char* candidateName = s_exports.field_get_name(candidate);
+                if (candidateName && strcmp(candidateName, field) == 0) {
+                    const int32_t offset = s_exports.field_get_offset(candidate);
+                    LOG("[RESOLVE] field %s.%s -> +0x%X", cls, field, static_cast<unsigned>(offset));
+                    return offset;
+                }
+            }
+        }
+    }
+    LOG("[RESOLVE] field %s.%s -> FAILED", cls ? cls : "?", field);
+    return -1;
+}
+
+void* ResolveRuntimeClass(const char* imageHint, const char* ns, const char* cls) {
+    ResolveExports();
+    if (!s_exports.domain_get || !s_exports.domain_get_assemblies ||
+        !s_exports.assembly_get_image || !s_exports.class_from_name ||
+        !ns || !cls) return nullptr;
+    void* domain = s_exports.domain_get();
+    size_t count = 0;
+    void** assemblies = domain ? s_exports.domain_get_assemblies(domain, &count) : nullptr;
+    for (size_t i = 0; assemblies && i < count; ++i) {
+        void* image = s_exports.assembly_get_image(assemblies[i]);
+        if (!image) continue;
+        if (imageHint && *imageHint && s_exports.image_get_name) {
+            const char* name = s_exports.image_get_name(image);
+            if (!name || strcmp(name, imageHint) != 0) continue;
+        }
+        void* klass = s_exports.class_from_name(image, ns, cls);
+        if (klass) return klass;
+    }
+    return nullptr;
+}
+
+void* AllocateIl2CppArray(void* elementClass, std::size_t length) {
+    ResolveExports();
+    if (!s_exports.array_new || !elementClass) return nullptr;
+    return s_exports.array_new(elementClass, length);
 }
 
 // ============================================================
