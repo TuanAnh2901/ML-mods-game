@@ -2,6 +2,9 @@
 #include "framework.h"
 #include <cstdio>
 #include <cstring>
+#include <windows.h>
+#include "config_registry.h"
+#include "profile_store.h"
 
 std::vector<Feature*> g_features;
 bool g_featuresReady = false;
@@ -12,8 +15,48 @@ void RegisterFeature(Feature* f) {
 }
 
 static const char* CONFIG_PATH = "el_native_config.ini";
+static ProfileStore g_profileStore("el_native_profiles.json");
+static bool g_configDirty = false;
+
+static bool LoadIniConfig() {
+    FILE* f = fopen(CONFIG_PATH, "r");
+    if (!f) return false;
+    char line[256];
+    while (fgets(line, sizeof(line), f)) {
+        if (line[0] == '\n' || line[0] == '#' || line[0] == ';') continue;
+        size_t len = strlen(line);
+        while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r')) line[--len] = '\0';
+        char* eq = strchr(line, '=');
+        if (!eq) continue;
+        *eq = '\0';
+        for (auto* feature : g_features) {
+            if (strcmp(feature->name, line) == 0) feature->enabled = (strcmp(eq + 1, "1") == 0);
+        }
+        GlobalConfigRegistry().Set(line, eq + 1);
+    }
+    fclose(f);
+    return true;
+}
+
+void ConfigApplyProfileDocument(const ProfileDocument& document) {
+    auto current = document.profiles.find(document.currentProfile);
+    if (current == document.profiles.end()) return;
+    for (auto* feature : g_features) {
+        auto flag = current->second.enabled.find(feature->name);
+        if (flag != current->second.enabled.end()) feature->enabled = flag->second;
+    }
+    for (const auto& setting : current->second.settings)
+        GlobalConfigRegistry().Set(setting.first, setting.second);
+}
 
 void ConfigLoad() {
+    ProfileDocument document;
+    if (g_profileStore.Load(document) || g_profileStore.RecoverBackup(document)) {
+        ConfigApplyProfileDocument(document);
+        LOG("[PROFILE] loaded/recovered %s (%s)", g_profileStore.Path().c_str(), document.currentProfile.c_str());
+        return;
+    }
+
     FILE* f = fopen(CONFIG_PATH, "r");
     if (!f) {
         LOG("[P1] Config: no config file found at %s", CONFIG_PATH);
@@ -45,6 +88,15 @@ void ConfigLoad() {
         }
     }
     fclose(f);
+
+    if (LoadIniConfig()) {
+        ProfileDocument migrated;
+        if (g_profileStore.MigrateIni(CONFIG_PATH, migrated)) {
+            for (auto* feature : g_features) migrated.profiles["default"].enabled[feature->name] = feature->enabled;
+            g_profileStore.Save(migrated);
+            LOG("[PROFILE] migrated enabled flags from %s", CONFIG_PATH);
+        }
+    }
 }
 
 void ConfigSave() {
@@ -57,7 +109,32 @@ void ConfigSave() {
         fprintf(f, "%s=%d\n", feature->name, feature->enabled ? 1 : 0);
     }
     fclose(f);
+    ProfileDocument document;
+    if (!g_profileStore.Load(document) && !g_profileStore.RecoverBackup(document)) {
+        document.currentProfile = "default";
+        document.profiles["default"].name = "default";
+    }
+    if (document.currentProfile.empty() || !document.profiles.count(document.currentProfile)) {
+        document.currentProfile = document.profiles.empty() ? "default" : document.profiles.begin()->first;
+        document.profiles[document.currentProfile].name = document.currentProfile;
+    }
+    Profile& profile = document.profiles[document.currentProfile];
+    profile.name = document.currentProfile;
+    for (auto* feature : g_features) profile.enabled[feature->name] = feature->enabled;
+    for (const auto& descriptor : GlobalConfigRegistry().Descriptors())
+        profile.settings[descriptor.name] = GlobalConfigRegistry().Get(descriptor.name);
+    g_profileStore.Save(document);
+    g_configDirty = false;
     LOG("[P1] Config saved");
+}
+
+void ConfigMarkDirty() {
+    g_configDirty = true;
+}
+
+void ConfigAutosaveTick() {
+    // Persistence is explicit through the Profiles tab. Kept as a no-op API
+    // for callers built against the previous configuration interface.
 }
 
 // ============================================================

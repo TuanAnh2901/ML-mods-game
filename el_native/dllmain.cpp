@@ -1,6 +1,7 @@
 #include <windows.h>
 #include "hook.h"
 #include "framework.h"
+#include "compatibility_patch.h"
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID) {
     if (reason == DLL_PROCESS_ATTACH) {
@@ -12,6 +13,9 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID) {
 
         HANDLE hThread = CreateThread(NULL, 0, HookThread, hModule, 0, NULL);
         if (hThread) CloseHandle(hThread);
+    }
+    else if (reason == DLL_PROCESS_DETACH) {
+        RestoreAntiCheatEarlyPatches();
     }
     return TRUE;
 }

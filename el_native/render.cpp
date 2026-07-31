@@ -5,11 +5,13 @@
 
 #include <d3d11.h>
 #include <dxgi.h>
+#include <cstring>
 
 #include "..\third_party\imgui\imgui.h"
 #include "..\third_party\imgui\imgui_impl_dx11.h"
 #include "..\third_party\imgui\imgui_impl_win32.h"
 #include "feature.h"
+#include "profile_store.h"
 // Forward declare — header has it behind #if 0
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -41,6 +43,27 @@ static bool g_imguiInitialized = false;
 static ID3D11Device* g_pd3dDevice = nullptr;
 static ID3D11DeviceContext* g_pd3dDeviceContext = nullptr;
 static ID3D11RenderTargetView* g_mainRTV = nullptr;
+static int g_sidebarCategory = 0;
+static char g_featureSearch[64] = {};
+
+static const char* FeatureCategory(const char* name) {
+    if (!name) return "Diagnostics";
+    // CombatRuntime owns the board/entity table; keep it out of the Combat
+    // modifier tab even though its name contains the word "Combat".
+    if (strcmp(name, "CombatRuntime") == 0 || strstr(name, "Entity") || strstr(name, "Runtime")) return "Entity Manager";
+    if (strstr(name, "Combat") || strstr(name, "Energy") || strstr(name, "Damage")) return "Combat";
+    if (strstr(name, "Relationship")) return "Relationships";
+    if (strstr(name, "Currency") || strstr(name, "Shop")) return "Economy";
+    if (strstr(name, "Debug") || strstr(name, "Resolve") || strstr(name, "AntiCheat")) return "Debug";
+    if (strstr(name, "Roulette") || strstr(name, "Mascot") || strstr(name, "Automation") || strstr(name, "DevMenu")) return "Experimental";
+    if (strstr(name, "Profile")) return "Profiles";
+    return "Diagnostics";
+}
+
+static const char* SidebarCategory(int index) {
+    static const char* categories[] = {"Combat", "Entity Manager", "Relationships", "Economy", "Debug", "Diagnostics", "Experimental", "Profiles"};
+    return (index >= 0 && index < 8) ? categories[index] : categories[0];
+}
 
 // ============================================================
 // CreateMainRTV — bind target for ImGui draw data.
@@ -174,48 +197,70 @@ HRESULT STDMETHODCALLTYPE PresentHook(
         }
 
         if (g_overlayVisible) {
+            ImGui::SetNextWindowSize(ImVec2(1100, 760), ImGuiCond_FirstUseEver);
             ImGui::Begin("EL_Native Debug");
             ImGui::Text("EL_Native v0.1");
             ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
 
-            // --- Resolve log ---
-            ImGui::SeparatorText("Resolved Methods");
-            int count = GetResolveLogCount();
-            if (count == 0) {
-                ImGui::Text("No resolves yet");
-            } else {
-                static const char* labels[] = { "API", "fallback", "FAIL", "cache" };
-                ImGui::Columns(3, "resolve_cols", false);
-                ImGui::Text("Method"); ImGui::NextColumn();
-                ImGui::Text("Ptr");    ImGui::NextColumn();
-                ImGui::Text("Src");    ImGui::NextColumn();
+            // Sidebar feature view.  The feature objects remain the source of
+            // truth; only the selected category is rendered at a time.
+            if (g_featuresReady && !g_features.empty()) {
                 ImGui::Separator();
-                for (int i = 0; i < count; i++) {
-                    const ResolveEntry* e = GetResolveLogEntry(i);
-                    if (!e) continue;
-                    ImGui::Text("%s", e->name);   ImGui::NextColumn();
-                    ImGui::Text("0x%llX", e->ptr); ImGui::NextColumn();
-                    int src = e->source;
-                    if (src >= 0 && src < 4)
-                        ImGui::Text("%s", labels[src]);
-                    else
-                        ImGui::Text("?");
-                    ImGui::NextColumn();
+                ImGui::InputText("Search", g_featureSearch, sizeof(g_featureSearch));
+                const float panelHeight = (ImGui::GetContentRegionAvail().y > 120.0f)
+                    ? ImGui::GetContentRegionAvail().y - 4.0f : 120.0f;
+                ImGui::BeginChild("sidebar", ImVec2(175, panelHeight), true);
+                for (int i = 0; i < 8; ++i) {
+                    if (ImGui::Selectable(SidebarCategory(i), g_sidebarCategory == i)) g_sidebarCategory = i;
                 }
-                ImGui::Columns(1);
-            }
-
-            // Feature list section
-            if (g_featuresReady && g_features.size() > 0) {
-                ImGui::Separator();
-                ImGui::Text("Features");
-                for (auto* f : g_features) {
-                    if (ImGui::Checkbox(f->name, &f->enabled)) {
-                        ConfigSave();
+                ImGui::EndChild();
+                ImGui::SameLine();
+                ImGui::BeginChild("feature_panel", ImVec2(0, panelHeight), true);
+                const char* category = SidebarCategory(g_sidebarCategory);
+                if (strcmp(category, "Profiles") == 0) {
+                    ProfileUiRender();
+                } else if (strcmp(category, "Debug") == 0) {
+                    ImGui::SeparatorText("Resolve Method");
+                    ImGui::TextWrapped("Resolver status is collected here so the other tabs stay focused on their feature controls.");
+                    int count = GetResolveLogCount();
+                    if (count == 0) {
+                        ImGui::Text("No resolves yet");
+                    } else {
+                        static const char* labels[] = { "API", "fallback", "FAIL", "cache" };
+                        ImGui::Columns(3, "resolve_cols", false);
+                        ImGui::Text("Method"); ImGui::NextColumn();
+                        ImGui::Text("Ptr");    ImGui::NextColumn();
+                        ImGui::Text("Src");    ImGui::NextColumn();
+                        ImGui::Separator();
+                        for (int i = 0; i < count; i++) {
+                            const ResolveEntry* e = GetResolveLogEntry(i);
+                            if (!e) continue;
+                            ImGui::Text("%s", e->name);   ImGui::NextColumn();
+                            ImGui::Text("0x%llX", e->ptr); ImGui::NextColumn();
+                            int src = e->source;
+                            ImGui::Text("%s", (src >= 0 && src < 4) ? labels[src] : "?");
+                            ImGui::NextColumn();
+                        }
+                        ImGui::Columns(1);
                     }
-                    ImGui::SameLine();
-                    f->OnMenu();
+                    ImGui::SeparatorText("Debug features");
+                    for (auto* f : g_features) {
+                        if (strcmp(FeatureCategory(f->name), category) != 0) continue;
+                        if (g_featureSearch[0] && strstr(f->name, g_featureSearch) == nullptr) continue;
+                        if (ImGui::Checkbox(f->name, &f->enabled)) ConfigMarkDirty();
+                        ImGui::SameLine();
+                        f->OnMenu();
+                    }
+                } else {
+                    for (auto* f : g_features) {
+                        if (strcmp(FeatureCategory(f->name), category) != 0) continue;
+                        if (g_featureSearch[0] && strstr(f->name, g_featureSearch) == nullptr) continue;
+                        if (ImGui::Checkbox(f->name, &f->enabled)) ConfigMarkDirty();
+                        ImGui::SameLine();
+                        f->OnMenu();
+                    }
                 }
+                ImGui::EndChild();
             }
 
             ImGui::End();

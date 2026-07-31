@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <cstdint>
+#include "profile_store.h"
 
 struct Feature {
     const char* name;
@@ -17,5 +18,10 @@ extern std::vector<Feature*> g_features;
 extern bool g_featuresReady;
 
 void RegisterFeature(Feature* f);
+// Apply the selected profile to live feature flags and typed settings without
+// re-reading the legacy INI file.  Profile UI and startup both use this path.
+void ConfigApplyProfileDocument(const ProfileDocument& document);
 void ConfigLoad();
 void ConfigSave();
+void ConfigMarkDirty();
+void ConfigAutosaveTick();
