@@ -72,8 +72,15 @@ void MonsterDumpFeature::Init() {
     m_getList = (GetStaticList_t)ResolveMethodOrFallback(
         "Assembly-CSharp", "NewAssets.Scripts.Data_Helpers",
         "MonsterDataHelper", "get_MonstersList", 0);
+    // testUtilsName (string @ +0x18) is empty in production data; the real
+    // display name comes from GetOwnName().  Resolve it through the API first
+    // (fallback RVA 0x8619A0 is only used when metadata is unavailable).
+    m_getOwnName = (GetOwnName_t)ResolveMethodOrFallback(
+        "Assembly-CSharp", "NewAssets.Scripts.DataClasses",
+        "MonsterStaticData", "GetOwnName", 0);
     m_ready = (m_getList != nullptr);
-    LOG("[FEATURE] MonsterDump: %s list=%p", m_ready ? "READY" : "FAIL", m_getList);
+    LOG("[FEATURE] MonsterDump: %s list=%p ownName=%p",
+        m_ready ? "READY" : "FAIL", m_getList, m_getOwnName);
 }
 
 void MonsterDumpFeature::OnUpdate() {}
@@ -137,7 +144,16 @@ void MonsterDumpFeature::OnMenu() {
                 int32_t found = -1;
                 for (int32_t j = 0; j < unique; ++j) if (ids[j] == id) { found = j; break; }
                 if (found >= 0) continue;
-                const char* name = ReadIL2CPPString(GetFieldPtr(msd, 0x18));
+                const char* name = "(unknown)";
+                if (m_getOwnName) {
+                    // GetOwnName is a real method; guard against the stale-RVA
+                    // crash the previous direct field read was avoiding.
+                    void* str = nullptr;
+                    __try { str = m_getOwnName(msd, nullptr); } __except (EXCEPTION_EXECUTE_HANDLER) { str = nullptr; }
+                    if (str) name = ReadIL2CPPString(str);
+                }
+                if (!name || name[0] == 0 || strcmp(name, "(bad)") == 0)
+                    name = ReadIL2CPPString(GetFieldPtr(msd, 0x18));
                 ids[unique] = id;
                 strncpy_s(names + (unique * 256), 256, name, _TRUNCATE);
                 rarities[unique] = GetFieldI32(msd, 0xCC);

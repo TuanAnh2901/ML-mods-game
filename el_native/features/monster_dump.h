@@ -11,8 +11,11 @@ struct MonsterDumpFeature : Feature {
 
     // Static property; only the hidden MethodInfo argument is passed.
     typedef void* (__fastcall* GetStaticList_t)(void* methodInfo);
+    // Instance method; returns System.String* (name of the monster).
+    typedef void* (__fastcall* GetOwnName_t)(void* self, void* methodInfo);
 
     GetStaticList_t m_getList = nullptr;
+    GetOwnName_t m_getOwnName = nullptr;
 
     bool m_ready = false;
     bool m_dumpDone = false;
