@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 
 enum class AutomationMode { Off, AutoBattle, Derank };
 enum class AutomationState {
@@ -10,6 +11,69 @@ enum class AutomationState {
 enum class AutomationEvent {
     BattleStarted, BattleFinished, RewardCollected,
     CooldownElapsed, Failed, Stop
+};
+
+enum class AutoBattleTriggerDecision {
+    WaitForController,
+    WaitForInitialization,
+    Invoke,
+    Complete
+};
+
+AutoBattleTriggerDecision DecideAutoBattleTrigger(
+    bool hasController, bool hasCore, bool unlocked, bool active);
+
+bool CanArmAutoBattleAtBattlefieldStart(AutomationState state);
+
+bool IsAutoBattleRuntimeReady(
+    bool getterResolved, bool clickResolved, bool activeResolved, bool offsetsResolved);
+
+bool HasAutoBattleStartBarrier(
+    bool startObserverHooked, bool startObserved, bool controllerResolvedAfterBattlefieldStart);
+
+enum class RewardSettlementDecision { Wait, CompleteAfterConfirmedClaim, ManualClaimRequired };
+
+RewardSettlementDecision DecideRewardSettlement(
+    bool multichestVisible, bool bundleVisible, bool leagueVisible,
+    bool claimGraceElapsed, bool deadlineElapsed);
+
+enum class MultichestPhase {
+    Hidden, Seen, WaitingForInitialization, WaitingForOpenAll,
+    OpenAllInvoked, WaitingForRewardSettlement, CloseRequested
+};
+
+enum class MultichestAction { Wait, InvokeOpenAll, RequestClose };
+
+struct MultichestSnapshot {
+    int32_t rewardCount = 0;
+    int32_t freeCount = 0;
+    int32_t actualCount = 0;
+    int32_t currentCount = 0;
+    bool openAllActive = false;
+    bool pressedOpenAll = false;
+    bool cardsAppearAnimDone = false;
+    bool openAllLock = false;
+    bool openCardsButtonPresent = false;
+    bool buttonsActive = false;
+};
+
+class MultichestRuntimeState {
+public:
+    void OnShown(void* window);
+    MultichestAction Decide(const MultichestSnapshot& snapshot) const;
+    void OnOpenAllReturned(const MultichestSnapshot& before, const MultichestSnapshot& after);
+    void OnCloseRequested();
+    bool OnHidden();
+    MultichestPhase Phase() const { return m_phase; }
+    unsigned Generation() const { return m_generation; }
+    bool OpenAllInvoked() const { return m_openAllInvoked; }
+
+private:
+    void* m_window = nullptr;
+    MultichestPhase m_phase = MultichestPhase::Hidden;
+    unsigned m_generation = 0;
+    bool m_openAllInvoked = false;
+    bool m_hiddenNotified = false;
 };
 
 class AutomationCoordinator {

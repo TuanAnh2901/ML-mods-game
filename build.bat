@@ -131,15 +131,9 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_main_thread_dispatcher.obj el_native\main_thread_dispatcher.cpp
+"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_multichest_delegate_guard.obj el_native\multichest_delegate_guard.cpp
 if %ERRORLEVEL% neq 0 (
-    echo main_thread_dispatcher.cpp COMPILE FAILED
-    exit /b 1
-)
-
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_dev_menu.obj el_native\features\dev_menu.cpp /I minhook\include /I third_party\imgui
-if %ERRORLEVEL% neq 0 (
-    echo dev_menu.cpp COMPILE FAILED
+    echo multichest_delegate_guard.cpp COMPILE FAILED
     exit /b 1
 )
 
@@ -155,9 +149,15 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_mascot_trace.obj el_native\features\mascot_trace.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_main_thread_dispatcher.obj el_native\main_thread_dispatcher.cpp
 if %ERRORLEVEL% neq 0 (
-    echo mascot_trace.cpp COMPILE FAILED
+    echo main_thread_dispatcher.cpp COMPILE FAILED
+    exit /b 1
+)
+
+"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_dev_menu.obj el_native\features\dev_menu.cpp /I minhook\include /I third_party\imgui
+if %ERRORLEVEL% neq 0 (
+    echo dev_menu.cpp COMPILE FAILED
     exit /b 1
 )
 
@@ -221,6 +221,18 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
+"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_proxy_log_overlay.obj el_native\features\proxy_log_overlay.cpp /I third_party\imgui
+if %ERRORLEVEL% neq 0 (
+    echo proxy_log_overlay.cpp COMPILE FAILED
+    exit /b 1
+)
+
+"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_action_tracer.obj el_native\features\action_tracer.cpp /I minhook\include /I third_party\imgui
+if %ERRORLEVEL% neq 0 (
+    echo action_tracer.cpp COMPILE FAILED
+    exit /b 1
+)
+
 echo === Building ImGui ===
 set IMGUI=third_party\imgui
 "%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\imgui.obj %IMGUI%\imgui.cpp /I %IMGUI%
@@ -238,8 +250,8 @@ if %ERRORLEVEL% neq 0 ( echo imgui_impl_win32.cpp FAILED & exit /b 1 )
 
 "%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /Fe:%BLD%\el_native.dll el_native\dllmain.cpp ^
     minhook\src\buffer.c minhook\src\hook.c minhook\src\trampoline.c minhook\src\hde\hde64.c ^
-    %BLD%\el_hook.obj %BLD%\el_compatibility_patch.obj %BLD%\el_main_thread_dispatcher.obj %BLD%\el_automation.obj %BLD%\el_dev_menu.obj %BLD%\el_automation_feature.obj %BLD%\el_mascot_trace.obj %BLD%\el_render.obj %BLD%\el_resolve.obj %BLD%\el_feature.obj %BLD%\el_game_speed.obj %BLD%\el_currency.obj %BLD%\el_resource_dump.obj ^
-    %BLD%\el_damage.obj %BLD%\el_netlog.obj %BLD%\el_gacha.obj %BLD%\el_monster_dump.obj %BLD%\el_battle_shop.obj %BLD%\el_energy_attack_speed.obj %BLD%\el_battle_result.obj %BLD%\el_anticheat.obj %BLD%\el_tracer.obj %BLD%\el_battle_combat.obj %BLD%\el_relationship.obj %BLD%\el_roulette_trace.obj %BLD%\el_combat_runtime.obj %BLD%\el_combat_runtime_adapter.obj %BLD%\el_hook_registry.obj %BLD%\el_profile_store.obj %BLD%\el_config_registry.obj %BLD%\el_profile_ui.obj %BLD%\el_combat_runtime_feature.obj ^
+    %BLD%\el_hook.obj %BLD%\el_compatibility_patch.obj %BLD%\el_multichest_delegate_guard.obj %BLD%\el_automation.obj %BLD%\el_automation_feature.obj %BLD%\el_main_thread_dispatcher.obj %BLD%\el_dev_menu.obj %BLD%\el_render.obj %BLD%\el_resolve.obj %BLD%\el_feature.obj %BLD%\el_game_speed.obj %BLD%\el_currency.obj %BLD%\el_resource_dump.obj ^
+    %BLD%\el_damage.obj %BLD%\el_netlog.obj %BLD%\el_gacha.obj %BLD%\el_monster_dump.obj %BLD%\el_battle_shop.obj %BLD%\el_energy_attack_speed.obj %BLD%\el_battle_result.obj %BLD%\el_anticheat.obj %BLD%\el_tracer.obj %BLD%\el_battle_combat.obj %BLD%\el_relationship.obj %BLD%\el_roulette_trace.obj %BLD%\el_proxy_log_overlay.obj %BLD%\el_action_tracer.obj %BLD%\el_combat_runtime.obj %BLD%\el_combat_runtime_adapter.obj %BLD%\el_hook_registry.obj %BLD%\el_profile_store.obj %BLD%\el_config_registry.obj %BLD%\el_profile_ui.obj %BLD%\el_combat_runtime_feature.obj ^
     %BLD%\imgui.obj %BLD%\imgui_draw.obj %BLD%\imgui_tables.obj %BLD%\imgui_widgets.obj ^
     %BLD%\imgui_impl_dx11.obj %BLD%\imgui_impl_win32.obj ^
     /I minhook\include /I minhook\src /I minhook\src\hde /I %IMGUI% /link /DLL /SUBSYSTEM:WINDOWS d3d11.lib dxgi.lib
@@ -252,12 +264,75 @@ echo === Build complete ===
 echo   %BLD%\injector.exe
 echo   %BLD%\el_native.dll
 
+rem Deploy the two runtime files to the game directory after every successful build.
+rem Override EL_GAME_DIR when using another installation; missing directories only
+rem skip deployment so CI/builds on another machine still succeed.
+if not defined EL_GAME_DIR set "EL_GAME_DIR=D:\SteamLibrary\steamapps\common\Everlusting Life"
+if exist "%EL_GAME_DIR%" (
+    echo === Deploying to game ===
+    copy /Y "%BLD%\injector.exe" "%EL_GAME_DIR%\injector.exe" >nul
+    if %ERRORLEVEL% neq 0 (
+        echo injector.exe DEPLOY FAILED
+        exit /b 1
+    )
+    copy /Y "%BLD%\el_native.dll" "%EL_GAME_DIR%\el_native.dll" >nul
+    if %ERRORLEVEL% neq 0 (
+        echo el_native.dll DEPLOY FAILED
+        exit /b 1
+    )
+    echo   %EL_GAME_DIR%\injector.exe
+    echo   %EL_GAME_DIR%\el_native.dll
+    echo === Deploying proxy to game ===
+    copy /Y el_proxy.py "%EL_GAME_DIR%\el_proxy.py" >nul
+    if %ERRORLEVEL% neq 0 (
+        echo el_proxy.py DEPLOY FAILED
+        exit /b 1
+    )
+    copy /Y el_proxy.json "%EL_GAME_DIR%\el_proxy.json" >nul
+    if %ERRORLEVEL% neq 0 (
+        echo el_proxy.json DEPLOY FAILED
+        exit /b 1
+    )
+    copy /Y adultchess.crt "%EL_GAME_DIR%\adultchess.crt" >nul
+    if %ERRORLEVEL% neq 0 (
+        echo adultchess.crt DEPLOY FAILED
+        exit /b 1
+    )
+    copy /Y adultchess.key "%EL_GAME_DIR%\adultchess.key" >nul
+    if %ERRORLEVEL% neq 0 (
+        echo adultchess.key DEPLOY FAILED
+        exit /b 1
+    )
+    if exist el_proxy.log copy /Y el_proxy.log "%EL_GAME_DIR%\el_proxy.log" >nul
+    echo   %EL_GAME_DIR%\el_proxy.py / .json / certs
+) else (
+    echo GAME_DIR not found; deployment skipped: %EL_GAME_DIR%
+)
+
 echo === Building runtime/profile tests ===
 "%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /EHsc /std:c++14 tests\combat_runtime_profiles_tests.cpp ^
-    el_native\combat_runtime.cpp el_native\combat_runtime_adapter.cpp el_native\automation.cpp el_native\main_thread_dispatcher.cpp el_native\hook_registry.cpp el_native\profile_store.cpp el_native\config_registry.cpp injector\launcher.cpp ^
+    el_native\combat_runtime.cpp el_native\combat_runtime_adapter.cpp el_native\automation.cpp el_native\main_thread_dispatcher.cpp el_native\multichest_delegate_guard.cpp el_native\hook_registry.cpp el_native\profile_store.cpp el_native\config_registry.cpp injector\launcher.cpp ^
     /I el_native /I injector /I third_party\imgui /Fe:%BLD%\combat_runtime_profiles_tests.exe
 if %ERRORLEVEL% neq 0 (
     echo runtime/profile tests BUILD FAILED
     exit /b 1
 )
 echo   %BLD%\combat_runtime_profiles_tests.exe
+
+echo === Building proxy log parser tests ===
+"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /EHsc /std:c++14 tests\proxy_log_parse_tests.cpp ^
+    /I el_native /Fe:%BLD%\proxy_log_parse_tests.exe
+if %ERRORLEVEL% neq 0 (
+    echo proxy log parser tests BUILD FAILED
+    exit /b 1
+)
+echo   %BLD%\proxy_log_parse_tests.exe
+
+echo === Building action trace tests ===
+"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /EHsc /std:c++14 tests\action_trace_tests.cpp ^
+    /I el_native /Fe:%BLD%\action_trace_tests.exe
+if %ERRORLEVEL% neq 0 (
+    echo action trace tests BUILD FAILED
+    exit /b 1
+)
+echo   %BLD%\action_trace_tests.exe

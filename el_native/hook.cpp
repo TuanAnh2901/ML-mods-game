@@ -7,6 +7,7 @@
 #include "compatibility_patch.h"
 #include "main_thread_dispatcher.h"
 #include "..\minhook\include\MinHook.h"
+#include "safe_call.h"
 #include <cstdlib>
 
 typedef void(__fastcall* UpdateFunc)(void*);
@@ -15,8 +16,12 @@ volatile LONG g_callCount = 0;
 
 void __fastcall UpdateHook(void* __this) {
     InterlockedIncrement(&g_callCount);
-    GlobalMainThreadDispatcher().Tick();
-    OriginalUpdate(__this);
+    // Dispatcher tasks are already guarded per-task; this outer guard also
+    // isolates the dispatcher's own bookkeeping on the game Update thread.
+    ElGuard("core.update", [&] {
+        GlobalMainThreadDispatcher().Tick();
+        OriginalUpdate(__this);
+    });
 }
 
 DWORD WINAPI HookThread(LPVOID) {
@@ -90,9 +95,11 @@ DWORD WINAPI HookThread(LPVOID) {
     // [P1] Initialize D3D11 Present + ResizeBuffers hooks
     Render_Init();
 
-    // [P1] Init features before loading typed profile settings.
+    // [P1] Init features before loading typed profile settings. One faulting
+    // Init must not abort the rest of the features' setup.
     for (auto* f : g_features) {
-        f->Init();
+        if (!f) continue;
+        ElGuard("feature.init", [&] { f->Init(); });
     }
     ConfigLoad();
     g_featuresReady = true;

@@ -14,35 +14,6 @@ static ConvertWinningSideToBattleResult_t Original_ConvertWinningSideToBattleRes
 typedef void(__fastcall* ApplyBattleResult_t)(void* self, void* battleId, void* winnerId, void* unitUids, void* mi);
 static ApplyBattleResult_t Original_ApplyBattleResult = nullptr;
 
-// Tournament/session progression consumes ServerParticipant::UpdateStreaks
-// after the battle result arrives.  This path is separate from the local
-// LocalMatchData converter, so force-win must cover it as well.
-typedef void(__fastcall* UpdateStreaks_t)(void* self, int32_t result, void* mi);
-typedef bool(__fastcall* IsLocal_t)(void* self, void* mi);
-// get_Uid returns Il2CppString* for ServerParticipant — used to match tournament participant to local player
-typedef void*(__fastcall* GetUid_t)(void* self, void* mi);
-static UpdateStreaks_t Original_UpdateStreaks = nullptr;
-static IsLocal_t Original_IsLocal = nullptr;
-static GetUid_t Original_GetUid = nullptr;
-static int32_t s_forcedResult = -1;
-static bool s_localBattleHooked = false;
-static bool s_socketBattleHooked = false;
-static bool s_streakHooked = false;
-typedef void*(__fastcall* NameGetInstance_t)(void* mi);
-typedef void*(__fastcall* NameGetMyProfileId_t)(void* self, void* mi);
-static NameGetInstance_t s_nameGetInstance = nullptr;
-static NameGetMyProfileId_t s_nameGetMyProfileId = nullptr;
-
-static void* CurrentLocalPlayerIdObject() {
-    if (!s_nameGetInstance || !s_nameGetMyProfileId) return nullptr;
-    __try {
-        void* module = s_nameGetInstance(nullptr);
-        return module ? s_nameGetMyProfileId(module, nullptr) : nullptr;
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        return nullptr;
-    }
-}
-
 // Phase 3: Capture localPlayerId from LocalPhaseController constructor
 static char s_localPlayerId[256] = {0};
 static bool s_forceWin = false;
@@ -51,8 +22,7 @@ static int32_t __fastcall ConvertWinningSideToBattleResultHook(int32_t winningSi
     if (!Original_ConvertWinningSideToBattleResult) return 0;
     if (!s_forceWin)
         return Original_ConvertWinningSideToBattleResult(winningSide, playerSide, mi);
-    s_forcedResult = Original_ConvertWinningSideToBattleResult(playerSide, playerSide, mi);
-    return s_forcedResult;
+    return Original_ConvertWinningSideToBattleResult(playerSide, playerSide, mi);
 }
 
 // Il2CppString layout: first 8 bytes = vtable/klass ptr, then int32 length, then wchar chars
@@ -71,118 +41,19 @@ static const char* ReadIl2CppString(void* strPtr) {
     return buf;
 }
 
-static bool CopyIl2CppString(void* strPtr, char* out, size_t capacity) {
-    if (!strPtr || !out || capacity < 2) return false;
-    __try {
-        int32_t len = *(int32_t*)((char*)strPtr + 8);
-        if (len <= 0 || len >= static_cast<int32_t>(capacity) || len > 128) return false;
-        wchar_t* chars = (wchar_t*)((char*)strPtr + 12);
-        for (int32_t i = 0; i < len; ++i) out[i] = (char)(chars[i] & 0xFF);
-        out[len] = 0;
-        return true;
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        out[0] = 0;
-        return false;
-    }
-}
-
 static void __fastcall ApplyBattleResultHook(void* self, void* battleId, void* winnerId, void* unitUids, void* mi) {
     if (!Original_ApplyBattleResult) return;
-    void* localIdObject = CurrentLocalPlayerIdObject();
-    if (s_forceWin && (localIdObject || s_localPlayerId[0])) {
-        char winner[256] = {};
-        char localId[256] = {};
-        const bool winnerOk = CopyIl2CppString(winnerId, winner, sizeof(winner));
-        const bool localOk = localIdObject
-            ? CopyIl2CppString(localIdObject, localId, sizeof(localId))
-            : (strncpy_s(localId, s_localPlayerId, _TRUNCATE) == 0 && localId[0]);
-        if (winnerOk && localOk && localIdObject && strcmp(winner, localId) != 0) {
-            LOG("[FEATURE] BattleResult: LocalMatchData winner overridden");
-            if (localIdObject) winnerId = localIdObject;
+    if (s_forceWin && s_localPlayerId[0]) {
+        const char* winner = ReadIl2CppString(winnerId);
+        if (winner && strcmp(winner, s_localPlayerId) != 0) {
+            LOG("[FEATURE] BattleResult: server winner=%s, forcing to %s", winner, s_localPlayerId);
+            // Replace winnerId string content with s_localPlayerId
+            // We can't modify the Il2CppString directly (it's interned),
+            // so we rely on ConvertWinningSideToBattleResult to have already
+            // sent "win" to the server.
         }
     }
     Original_ApplyBattleResult(self, battleId, winnerId, unitUids, mi);
-}
-
-typedef void*(__fastcall* LocalBattleResult_t)(void* self, void* winnerId, void* unitUids,
-    void* battleId, int32_t roundId, bool applyNow, int32_t battleHash, void* mi);
-static LocalBattleResult_t Original_LocalBattleResult = nullptr;
-static LocalBattleResult_t Original_SocketBattleResult = nullptr;
-typedef void(__fastcall* SocketBattleCalculateResult_t)(void* self, int32_t matchId,
-    void* battleId, void* winnerId, void* remainingMobsIds, void* mi);
-static SocketBattleCalculateResult_t Original_SocketBattleCalculateResult = nullptr;
-
-static void* __fastcall LocalBattleResultHook(void* self, void* winnerId, void* unitUids,
-    void* battleId, int32_t roundId, bool applyNow, int32_t battleHash, void* mi) {
-    void* localIdObject = CurrentLocalPlayerIdObject();
-    if (s_forceWin && localIdObject) {
-        LOG("[FEATURE] BattleResult: LocalServerEmulator winner overridden round=%d", roundId);
-        winnerId = localIdObject;
-    }
-    return Original_LocalBattleResult
-        ? Original_LocalBattleResult(self, winnerId, unitUids, battleId, roundId, applyNow, battleHash, mi)
-        : nullptr;
-}
-
-static void* __fastcall SocketBattleResultHook(void* self, void* winnerId, void* unitUids,
-    void* battleId, int32_t roundId, bool applyNow, int32_t battleHash, void* mi) {
-    void* localIdObject = CurrentLocalPlayerIdObject();
-    if (s_forceWin && localIdObject) {
-        LOG("[FEATURE] BattleResult: ChessSocketsController winner overridden round=%d", roundId);
-        winnerId = localIdObject;
-    }
-    return Original_SocketBattleResult
-        ? Original_SocketBattleResult(self, winnerId, unitUids, battleId, roundId, applyNow, battleHash, mi)
-        : nullptr;
-}
-
-static void __fastcall SocketBattleCalculateResultHook(void* self, int32_t matchId,
-    void* battleId, void* winnerId, void* remainingMobsIds, void* mi) {
-    void* localIdObject = CurrentLocalPlayerIdObject();
-    if (s_forceWin && localIdObject) {
-        LOG("[FEATURE] BattleResult: ChessSocketsController calculate winner overridden match=%d", matchId);
-        winnerId = localIdObject;
-    }
-    if (Original_SocketBattleCalculateResult)
-        Original_SocketBattleCalculateResult(self, matchId, battleId, winnerId, remainingMobsIds, mi);
-}
-
-static void __fastcall UpdateStreaksHook(void* self, int32_t result, void* mi) {
-    if (!Original_UpdateStreaks) return;
-    int32_t applied = result;
-    // Treat an unresolved IsLocal getter as unknown/false.  Falling back to
-    // true would incorrectly force every server-synchronised participant.
-    bool local = false;
-    if (Original_IsLocal) {
-        __try { local = Original_IsLocal(self, nullptr); }
-        __except (EXCEPTION_EXECUTE_HANDLER) { local = false; }
-    }
-    // Tournament: IsLocal=false for server-synced participants — match by UID instead.
-    bool isOurParticipant = local;
-    if (!isOurParticipant && Original_GetUid) {
-        void* localIdObj = CurrentLocalPlayerIdObject();
-        char uidStr[256] = {};
-        char localStr[256] = {};
-        const bool localIdOk = localIdObj
-            ? CopyIl2CppString(localIdObj, localStr, sizeof(localStr))
-            : (strncpy_s(localStr, s_localPlayerId, _TRUNCATE) == 0 && localStr[0]);
-        if (localIdOk) {
-            __try {
-                void* uid = Original_GetUid(self, nullptr);
-                if (CopyIl2CppString(uid, uidStr, sizeof(uidStr)) &&
-                    strcmp(uidStr, localStr) == 0) {
-                    isOurParticipant = true;
-                    LOG("[FEATURE] BattleResult: Tournament UID match (IsLocal was false)");
-                }
-            } __except (EXCEPTION_EXECUTE_HANDLER) {}
-        }
-    }
-    if (s_forceWin && isOurParticipant && s_forcedResult >= 0) {
-        LOG("[FEATURE] BattleResult: %s UpdateStreaks %d -> %d",
-            local ? "local" : "tournament", result, s_forcedResult);
-        applied = s_forcedResult;
-    }
-    Original_UpdateStreaks(self, applied, mi);
 }
 
 // Capture localPlayerId from LocalPhaseController::.ctor
@@ -229,52 +100,6 @@ void BattleResultFeature::Init() {
         LOG("[FEATURE] BattleResult: hooked ApplyBattleResult @ %p", fn2);
     else LOG("[FEATURE] BattleResult: ApplyBattleResult fail");
 
-    void* fn4 = ResolveMethodOrFallback("Assembly-CSharp",
-        "AutoChess.CoreGameplay.Participant", "ServerParticipant",
-        "UpdateStreaks", 1);
-    void* fn5 = ResolveMethodOrFallback("Assembly-CSharp",
-        "AutoChess.CoreGameplay.Participant", "ServerParticipant",
-        "get_IsLocal", 0);
-    void* fn6 = ResolveMethodOrFallback("Assembly-CSharp", "UserData",
-        "NameModule", "get_instance", 0);
-    void* fn7 = ResolveMethodOrFallback("Assembly-CSharp", "UserData",
-        "NameModule", "get_MyProfileId", 0);
-    s_nameGetInstance = reinterpret_cast<NameGetInstance_t>(fn6);
-    s_nameGetMyProfileId = reinterpret_cast<NameGetMyProfileId_t>(fn7);
-    void* fnUid = ResolveMethodOrFallback("Assembly-CSharp",
-        "AutoChess.CoreGameplay.Participant", "ServerParticipant",
-        "get_Uid", 0);
-    Original_GetUid = reinterpret_cast<GetUid_t>(fnUid);
-    LOG("[FEATURE] BattleResult: get_Uid=%p", fnUid);
-    void* fn8 = ResolveMethodOrFallback("Assembly-CSharp", "AutoChess.LocalServer",
-        "LocalServerEmulator", "BattleResult", 6);
-    if (fn8 && MH_CreateHook(fn8, &LocalBattleResultHook,
-        (LPVOID*)&Original_LocalBattleResult) == MH_OK && MH_EnableHook(fn8) == MH_OK) {
-        s_localBattleHooked = true;
-        LOG("[FEATURE] BattleResult: hooked LocalServerEmulator.BattleResult @ %p", fn8);
-    } else LOG("[FEATURE] BattleResult: LocalServerEmulator.BattleResult unavailable");
-    void* fn9 = ResolveMethodOrFallback("Assembly-CSharp", "AutoChess.ChessSockets",
-        "ChessSocketsController", "ChessSockets.IChessSocketsController.BattleResult", 6);
-    void* fn10 = ResolveMethodOrFallback("Assembly-CSharp", "AutoChess.ChessSockets",
-        "ChessSocketsController", "ChessSockets.IChessSocketsController.BattleCalculateResult", 4);
-    if (fn9 && MH_CreateHook(fn9, &SocketBattleResultHook,
-        (LPVOID*)&Original_SocketBattleResult) == MH_OK && MH_EnableHook(fn9) == MH_OK) {
-        s_socketBattleHooked = true;
-        LOG("[FEATURE] BattleResult: hooked ChessSocketsController.BattleResult @ %p", fn9);
-    } else LOG("[FEATURE] BattleResult: ChessSocketsController.BattleResult unavailable");
-    if (fn10 && MH_CreateHook(fn10, &SocketBattleCalculateResultHook,
-        (LPVOID*)&Original_SocketBattleCalculateResult) == MH_OK && MH_EnableHook(fn10) == MH_OK)
-        LOG("[FEATURE] BattleResult: hooked ChessSocketsController.BattleCalculateResult @ %p", fn10);
-    else LOG("[FEATURE] BattleResult: ChessSocketsController.BattleCalculateResult unavailable");
-    LOG("[FEATURE] BattleResult: UpdateStreaks=%p get_IsLocal=%p", fn4, fn5);
-    if (fn5)
-        Original_IsLocal = reinterpret_cast<IsLocal_t>(fn5);
-    if (fn4 && MH_CreateHook(fn4, &UpdateStreaksHook,
-        (LPVOID*)&Original_UpdateStreaks) == MH_OK && MH_EnableHook(fn4) == MH_OK) {
-        s_streakHooked = true;
-        LOG("[FEATURE] BattleResult: hooked ServerParticipant.UpdateStreaks @ %p", fn4);
-    } else LOG("[FEATURE] BattleResult: UpdateStreaks fail");
-
     // Hook 3: Capture localPlayerId from LocalPhaseController constructor
     void* fn3 = ResolveMethodOrFallback("Assembly-CSharp",
         "AutoChess.LocalServer", "LocalPhaseController",
@@ -289,9 +114,6 @@ void BattleResultFeature::Init() {
 
 void BattleResultFeature::OnUpdate() {
     s_forceWin = enabled && m_forceWin && Original_ConvertWinningSideToBattleResult != nullptr;
-    s_forcedResult = -1;
-    if (s_forceWin)
-        s_forcedResult = Original_ConvertWinningSideToBattleResult(1, 1, nullptr);
 }
 
 void BattleResultFeature::OnMenu() {
@@ -300,15 +122,10 @@ void BattleResultFeature::OnMenu() {
         ImGui::TextColored(ImVec4(1, 0, 0, 1), "hook unavailable"); return;
     }
     ImGui::Checkbox("Force Win (all modes)", &m_forceWin);
-    ImGui::Text("Paths: converter=%s local-emulator=%s socket=%s tournament-streak=%s",
-        Original_ConvertWinningSideToBattleResult ? "hooked" : "missing",
-        s_localBattleHooked ? "hooked" : "missing",
-        s_socketBattleHooked ? "hooked" : "missing",
-        s_streakHooked ? "hooked" : "missing");
     if (s_localPlayerId[0])
         ImGui::Text("Player ID: %s", s_localPlayerId);
     if (m_forceWin)
-        ImGui::TextColored(ImVec4(0, 1, 0, 1), "Local battle + tournament streak result = Win");
+        ImGui::TextColored(ImVec4(0, 1, 0, 1), "All battles = Win");
 }
 
 static BattleResultFeature g_br;

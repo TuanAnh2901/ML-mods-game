@@ -120,6 +120,9 @@ void ConfigSave() {
     }
     Profile& profile = document.profiles[document.currentProfile];
     profile.name = document.currentProfile;
+    // Rebuild enabled flags instead of merging, so removed features (e.g.
+    // legacy Pass/Mascot entries) cannot remain in the active profile.
+    profile.enabled.clear();
     for (auto* feature : g_features) profile.enabled[feature->name] = feature->enabled;
     for (const auto& descriptor : GlobalConfigRegistry().Descriptors())
         profile.settings[descriptor.name] = GlobalConfigRegistry().Get(descriptor.name);
@@ -128,13 +131,18 @@ void ConfigSave() {
     LOG("[P1] Config saved");
 }
 
+static ULONGLONG g_dirtyAt = 0;
 void ConfigMarkDirty() {
     g_configDirty = true;
+    g_dirtyAt = GetTickCount64();
 }
 
 void ConfigAutosaveTick() {
-    // Persistence is explicit through the Profiles tab. Kept as a no-op API
-    // for callers built against the previous configuration interface.
+    if (!g_configDirty || !g_dirtyAt) return;
+    if (GetTickCount64() - g_dirtyAt >= 3000) {
+        ConfigSave();
+        g_dirtyAt = 0;
+    }
 }
 
 // ============================================================

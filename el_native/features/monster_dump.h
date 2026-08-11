@@ -9,15 +9,10 @@ struct MonsterDumpFeature : Feature {
     void OnUpdate() override;
     void OnMenu() override;
 
-    typedef void* (__fastcall* GetHelper_t)(void* methodInfo);
-    typedef void* (__fastcall* GetList_t)(void* self, void* methodInfo);
-    typedef int32_t (__fastcall* GetId_t)(void* self, void* methodInfo);
-    typedef void* (__fastcall* GetName_t)(void* self, void* methodInfo);
+    // Static property; only the hidden MethodInfo argument is passed.
+    typedef void* (__fastcall* GetStaticList_t)(void* methodInfo);
 
-    GetHelper_t m_getHelper = nullptr;
-    GetList_t m_getList = nullptr;
-    GetId_t m_getId = nullptr;
-    GetName_t m_getName = nullptr;
+    GetStaticList_t m_getList = nullptr;
 
     bool m_ready = false;
     bool m_dumpDone = false;

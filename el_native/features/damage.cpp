@@ -1,6 +1,7 @@
 #include "damage.h"
 #include "../framework.h"
 #include "../il2cpp_resolve.h"
+#include "../config_registry.h"
 #include "../../minhook/include/MinHook.h"
 #include "imgui.h"
 #include <cstdint>
@@ -74,6 +75,10 @@ DamageFeature::DamageFeature() {
 }
 
 void DamageFeature::Init() {
+    GlobalConfigRegistry().RegisterFloat("combat.damage_player_multiplier", &m_playerMult);
+    GlobalConfigRegistry().RegisterFloat("combat.damage_enemy_multiplier", &m_enemyMult);
+    GlobalConfigRegistry().RegisterInteger("combat.damage_player_side", &m_playerSide);
+    GlobalConfigRegistry().RegisterInteger("combat.damage_god_mode_side", &m_godModeSide);
     Resolved_GetArmySide = (GetArmySide_t)ResolveMethodOrFallback(
         "Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units",
         "UnitCore", "get_ArmySide", 0);

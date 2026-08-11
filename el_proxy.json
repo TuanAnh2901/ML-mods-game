@@ -1,0 +1,38 @@
+{
+  "enabled": true,
+  "server_host": "ga.adult-chess.com",
+  "fallback_ips": {
+    "ga.adult-chess.com": "166.117.25.255",
+    "ru.adult-chess.com": "166.117.25.255",
+    "adult-chess.com": "166.117.25.255"
+  },
+  "cert": "D:\\VSCode\\EL_Native\\adultchess.crt",
+  "key": "D:\\VSCode\\EL_Native\\adultchess.key",
+  "port": 443,
+  "upstream_timeout": 30,
+  "resource_overrides": {
+    "gold": 999999,
+    "gems": 999999,
+    "energy": 999,
+    "contribution": 999999,
+    "elixir": 999999,
+    "spin": 999
+  },
+  "block_error_codes": [
+    700,
+    701,
+    702,
+    703,
+    801,
+    802
+  ],
+  "roulette": {
+    "enabled": true,
+    "reward_type": "resource",
+    "reward_id": "gems",
+    "reward_qty": 999999,
+    "action_name": "ApplyCardRouletteSpinRewards"
+  },
+  "log_requests": true,
+  "log_responses": false
+}

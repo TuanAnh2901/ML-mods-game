@@ -2,6 +2,7 @@
 #include "../framework.h"
 #include "../il2cpp_resolve.h"
 #include "../combat_runtime.h"
+#include "../config_registry.h"
 #include "../../minhook/include/MinHook.h"
 #include "imgui.h"
 #include <cstdint>
@@ -120,6 +121,11 @@ EnergyAttackSpeedFeature::EnergyAttackSpeedFeature() {
 }
 
 void EnergyAttackSpeedFeature::Init() {
+    GlobalConfigRegistry().RegisterFloat("combat.energy_multiplier", &m_energyMult);
+    GlobalConfigRegistry().RegisterFloat("combat.attack_speed_multiplier", &m_attackSpeedMult);
+    GlobalConfigRegistry().RegisterInteger("combat.attack_speed_player_side", &m_playerSide);
+    GlobalConfigRegistry().RegisterInteger("combat.attack_speed_stat", &m_statAttackSpeed);
+    GlobalConfigRegistry().RegisterBool("combat.attack_speed_track_stats", &m_trackStats);
     Resolved_GetArmySide = (GetArmySide_t)ResolveMethodOrFallback(
         "Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units",
         "UnitCore", "get_ArmySide", 0);

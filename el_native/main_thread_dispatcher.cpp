@@ -1,4 +1,5 @@
 #include "main_thread_dispatcher.h"
+#include "safe_call.h"
 
 #include <algorithm>
 
@@ -24,7 +25,11 @@ std::size_t MainThreadDispatcher::Tick(Clock::time_point now) {
             }
         }
     }
-    for (auto& task : ready) task();
+    // A faulting task must never take down the game Update thread: isolate it,
+    // log which dispatch faulted, and let the remaining tasks run.
+    for (auto& task : ready) {
+        ElGuard("dispatcher.task", [&] { task(); });
+    }
     return ready.size();
 }
 

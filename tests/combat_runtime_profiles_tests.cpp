@@ -6,6 +6,10 @@
 #include "../injector/launcher.h"
 #include "../el_native/automation.h"
 #include "../el_native/main_thread_dispatcher.h"
+#include "../el_native/multichest_delegate_guard.h"
+#include "../el_native/method_fallback.inc"
+
+#include <windows.h>
 
 #include <cassert>
 #include <cmath>
@@ -15,6 +19,150 @@
 #include <direct.h>
 #include <cstring>
 #include <chrono>
+#include <cstdio>
+
+static void StorePointer(void* base, size_t offset, void* value) {
+    std::memcpy(static_cast<unsigned char*>(base) + offset, &value, sizeof(value));
+}
+
+struct MultichestShowCapture {
+    void* provider = nullptr;
+    void* controller = nullptr;
+    void* adsManager = nullptr;
+    int32_t rewardCount = 0;
+    void* onClose = nullptr;
+    void* beforeHideAction = nullptr;
+    void* methodInfo = nullptr;
+};
+
+static MultichestShowCapture g_multichestShowCapture;
+static void* g_multichestShowReturn = reinterpret_cast<void*>(0x76543210);
+
+static void* __fastcall CaptureMultichestShow(void* provider, void* controller,
+    void* adsManager, int32_t rewardCount, void* onClose, void* beforeHideAction,
+    void* methodInfo) {
+    g_multichestShowCapture = {
+        provider, controller, adsManager, rewardCount, onClose, beforeHideAction, methodInfo};
+    return g_multichestShowReturn;
+}
+
+static void TestMultichestShowForwarding() {
+    void* provider = reinterpret_cast<void*>(0x11111110);
+    void* controller = reinterpret_cast<void*>(0x22222220);
+    void* adsManager = reinterpret_cast<void*>(0x33333330);
+    void* onClose = reinterpret_cast<void*>(0x44444440);
+    void* methodInfo = reinterpret_cast<void*>(0x55555550);
+    MultichestDelegateGuardResult guardResult = MultichestDelegateGuardResult::InvalidInput;
+    void* observedInvoke = reinterpret_cast<void*>(1);
+
+    void* promise = ForwardMultichestShowWithGuard(&CaptureMultichestShow,
+        0x100000, 0x200000, provider, controller, adsManager, 6, onClose,
+        reinterpret_cast<void*>(~uintptr_t{0}), methodInfo, &guardResult, &observedInvoke);
+    assert(promise == g_multichestShowReturn);
+    assert(g_multichestShowCapture.provider == provider);
+    assert(g_multichestShowCapture.controller == controller);
+    assert(g_multichestShowCapture.adsManager == adsManager);
+    assert(g_multichestShowCapture.rewardCount == 6);
+    assert(g_multichestShowCapture.onClose == onClose);
+    assert(g_multichestShowCapture.beforeHideAction == nullptr);
+    assert(g_multichestShowCapture.methodInfo == methodInfo);
+    assert(guardResult == MultichestDelegateGuardResult::ClearedInvalidDelegate);
+    assert(observedInvoke == nullptr);
+
+    auto* delegate = static_cast<unsigned char*>(
+        VirtualAlloc(nullptr, 0x1000, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+    auto* executable = static_cast<unsigned char*>(
+        VirtualAlloc(nullptr, 0x1000, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READ));
+    assert(delegate && executable);
+    StorePointer(delegate, 0x18, executable);
+    promise = ForwardMultichestShowWithGuard(&CaptureMultichestShow,
+        reinterpret_cast<uintptr_t>(executable), reinterpret_cast<uintptr_t>(executable) + 0x1000,
+        provider, controller, adsManager, 7, onClose, delegate, methodInfo,
+        &guardResult, &observedInvoke);
+    assert(promise == g_multichestShowReturn);
+    assert(g_multichestShowCapture.rewardCount == 7);
+    assert(g_multichestShowCapture.beforeHideAction == delegate);
+    assert(guardResult == MultichestDelegateGuardResult::ValidDelegate);
+    assert(observedInvoke == executable);
+
+    VirtualFree(executable, 0, MEM_RELEASE);
+    VirtualFree(delegate, 0, MEM_RELEASE);
+    std::puts("MULTICHEST_SHOW_ABI=FORWARDED_6_ARGS");
+    std::puts("MULTICHEST_SHOW_INVALID_CALLBACK=CLEARED_BEFORE_STORE");
+}
+
+static void TestMultichestDelegateGuard() {
+    constexpr int32_t fieldOffset = 0x130;
+    constexpr size_t invokeImplOffset = 0x18;
+    auto* window = static_cast<unsigned char*>(
+        VirtualAlloc(nullptr, 0x1000, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+    auto* delegate = static_cast<unsigned char*>(
+        VirtualAlloc(nullptr, 0x1000, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+    auto* executable = static_cast<unsigned char*>(
+        VirtualAlloc(nullptr, 0x1000, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READ));
+    auto* unreadable = static_cast<unsigned char*>(
+        VirtualAlloc(nullptr, 0x1000, MEM_RESERVE | MEM_COMMIT, PAGE_NOACCESS));
+    assert(window && delegate && executable && unreadable);
+
+    const uintptr_t moduleBegin = reinterpret_cast<uintptr_t>(executable);
+    const uintptr_t moduleEnd = moduleBegin + 0x1000;
+    void* observedDelegate = reinterpret_cast<void*>(1);
+    void* observedInvoke = reinterpret_cast<void*>(1);
+
+    assert(SanitizeMultichestBeforeHideAction(window, fieldOffset, moduleBegin, moduleEnd,
+        &observedDelegate, &observedInvoke) == MultichestDelegateGuardResult::NoDelegate);
+    assert(observedDelegate == nullptr && observedInvoke == nullptr);
+
+    StorePointer(window, fieldOffset, delegate + 1);
+    assert(SanitizeMultichestBeforeHideAction(window, fieldOffset, moduleBegin, moduleEnd) ==
+        MultichestDelegateGuardResult::ClearedInvalidDelegate);
+    void* field = reinterpret_cast<void*>(1);
+    std::memcpy(&field, window + fieldOffset, sizeof(field));
+    assert(field == nullptr);
+
+    StorePointer(window, fieldOffset, reinterpret_cast<void*>(~uintptr_t{0}));
+    assert(SanitizeMultichestBeforeHideAction(window, fieldOffset, moduleBegin, moduleEnd) ==
+        MultichestDelegateGuardResult::ClearedInvalidDelegate);
+
+    StorePointer(window, fieldOffset, unreadable);
+    assert(SanitizeMultichestBeforeHideAction(window, fieldOffset, moduleBegin, moduleEnd) ==
+        MultichestDelegateGuardResult::ClearedInvalidDelegate);
+
+    StorePointer(delegate, invokeImplOffset, reinterpret_cast<void*>(~uintptr_t{0}));
+    StorePointer(window, fieldOffset, delegate);
+    assert(SanitizeMultichestBeforeHideAction(window, fieldOffset, moduleBegin, moduleEnd) ==
+        MultichestDelegateGuardResult::ClearedInvalidDelegate);
+
+    StorePointer(delegate, invokeImplOffset, window);
+    StorePointer(window, fieldOffset, delegate);
+    assert(SanitizeMultichestBeforeHideAction(window, fieldOffset, moduleBegin, moduleEnd) ==
+        MultichestDelegateGuardResult::ClearedInvalidDelegate);
+
+    StorePointer(delegate, invokeImplOffset, executable);
+    StorePointer(window, fieldOffset, delegate);
+    assert(SanitizeMultichestBeforeHideAction(window, fieldOffset, moduleBegin, moduleEnd,
+        &observedDelegate, &observedInvoke) == MultichestDelegateGuardResult::ValidDelegate);
+    assert(observedDelegate == delegate && observedInvoke == executable);
+
+    DWORD oldProtect = 0;
+    assert(VirtualProtect(window, 0x1000, PAGE_READONLY, &oldProtect));
+    StorePointer(delegate, invokeImplOffset, reinterpret_cast<void*>(~uintptr_t{0}));
+    assert(SanitizeMultichestBeforeHideAction(window, fieldOffset, moduleBegin, moduleEnd) ==
+        MultichestDelegateGuardResult::ClearFailed);
+    DWORD ignored = 0;
+    assert(VirtualProtect(window, 0x1000, oldProtect, &ignored));
+
+    assert(SanitizeMultichestBeforeHideAction(nullptr, fieldOffset, moduleBegin, moduleEnd) ==
+        MultichestDelegateGuardResult::InvalidInput);
+
+    std::puts("GUARD_INVALID_INVOKE=CLEARED");
+    std::puts("GUARD_VALID_INVOKE=RETAINED");
+
+    VirtualFree(unreadable, 0, MEM_RELEASE);
+    VirtualFree(executable, 0, MEM_RELEASE);
+    VirtualFree(delegate, 0, MEM_RELEASE);
+    VirtualFree(window, 0, MEM_RELEASE);
+}
 
 static void TestIl2CppListAdapter() {
     unsigned char list[0x30] = {};
@@ -115,12 +263,14 @@ static void TestAutomationCoordinator() {
     coordinator.OnEvent(AutomationEvent::BattleStarted);
     coordinator.OnEvent(AutomationEvent::BattleFinished);
     coordinator.OnEvent(AutomationEvent::RewardCollected);
+    coordinator.OnEvent(AutomationEvent::RewardCollected);
     assert(coordinator.CompletedLoops() == 1);
     assert(coordinator.State() == AutomationState::Cooldown);
     coordinator.OnEvent(AutomationEvent::CooldownElapsed);
     assert(coordinator.State() == AutomationState::StartingBattle);
     coordinator.OnEvent(AutomationEvent::BattleStarted);
     coordinator.OnEvent(AutomationEvent::BattleFinished);
+    coordinator.OnEvent(AutomationEvent::RewardCollected);
     coordinator.OnEvent(AutomationEvent::RewardCollected);
     assert(coordinator.CompletedLoops() == 2);
     assert(coordinator.State() == AutomationState::Done);
@@ -133,10 +283,148 @@ static void TestAutomationCoordinator() {
         unlimited.OnEvent(AutomationEvent::BattleStarted);
         unlimited.OnEvent(AutomationEvent::BattleFinished);
         unlimited.OnEvent(AutomationEvent::RewardCollected);
+        unlimited.OnEvent(AutomationEvent::RewardCollected);
         assert(unlimited.State() == AutomationState::Cooldown);
         unlimited.OnEvent(AutomationEvent::CooldownElapsed);
     }
     assert(unlimited.CompletedLoops() == 3);
+}
+
+static void TestAutoBattleTriggerDecision() {
+    assert(DecideAutoBattleTrigger(false, false, false, false) ==
+        AutoBattleTriggerDecision::WaitForController);
+    assert(DecideAutoBattleTrigger(true, false, false, false) ==
+        AutoBattleTriggerDecision::WaitForInitialization);
+    assert(DecideAutoBattleTrigger(true, true, false, false) ==
+        AutoBattleTriggerDecision::WaitForInitialization);
+    assert(DecideAutoBattleTrigger(true, true, true, false) ==
+        AutoBattleTriggerDecision::Invoke);
+    assert(DecideAutoBattleTrigger(true, true, true, true) ==
+        AutoBattleTriggerDecision::Complete);
+    std::puts("AUTOBATTLE_PREINIT=WAIT");
+    std::puts("AUTOBATTLE_READY_INACTIVE=INVOKE");
+    std::puts("AUTOBATTLE_ACTIVE=COMPLETE");
+}
+
+static void TestAutoBattleReadinessWithoutStartObserver() {
+    assert(IsAutoBattleRuntimeReady(true, true, true, true));
+    assert(!IsAutoBattleRuntimeReady(false, true, true, true));
+    assert(!IsAutoBattleRuntimeReady(true, false, true, true));
+    assert(!IsAutoBattleRuntimeReady(true, true, false, true));
+    assert(!IsAutoBattleRuntimeReady(true, true, true, false));
+
+    assert(!HasAutoBattleStartBarrier(true, false, true));
+    assert(HasAutoBattleStartBarrier(true, true, false));
+    assert(!HasAutoBattleStartBarrier(false, false, false));
+    assert(HasAutoBattleStartBarrier(false, false, true));
+    std::puts("AUTOBATTLE_START_OBSERVER=OPTIONAL");
+    std::puts("AUTOBATTLE_BATTLEFIELD_START_FALLBACK=OK");
+}
+
+static uintptr_t FindMethodFallbackRva(const char* klass, const char* method, int argc) {
+    for (size_t index = 0; index < g_methodFallbackCount; ++index) {
+        const MethodFallbackEntry& entry = g_methodFallbackTable[index];
+        if (std::strcmp(entry.klass, klass) == 0 &&
+            std::strcmp(entry.method, method) == 0 &&
+            entry.argc == argc) {
+            return entry.rva;
+        }
+    }
+    return 0;
+}
+
+static void TestAutoBattleLifecycleFallbacks() {
+    assert(FindMethodFallbackRva("BattlefieldWindow", "get_AutoBattleController", 0) == 0xBFC510);
+    assert(FindMethodFallbackRva("AutoBattleController", "OnAutoBattleClicked", 0) == 0xEE4B10);
+    assert(FindMethodFallbackRva("AutoBattleController", "IsAutoBattleActive", 0) == 0xEE4AC0);
+    assert(FindMethodFallbackRva("AutoBattleController", "Start", 0) == 0xEE5090);
+    assert(FindMethodFallbackRva("AutoBattleController", "SetAutoBattleInactive", 0) == 0xEE5030);
+    std::puts("AUTOBATTLE_LIFECYCLE_FALLBACKS=OK");
+}
+
+static void TestAutomationMethodFallbackCoverage() {
+    assert(FindMethodFallbackRva("ItemModule", "IsEnoughResource", 2) == 0xDF3240);
+    assert(FindMethodFallbackRva("ExternalJourneyFighter", "ClaimRewardsOnWin", 0) == 0xD4EC10);
+    assert(FindMethodFallbackRva("MultichestWindow", "ShowMultichestWindow", 6) == 0x9808A0);
+    assert(FindMethodFallbackRva("IdleChestPresenter", "ShowWindow", 1) == 0x6C9BE0);
+    assert(FindMethodFallbackRva("IdleChestPresenter", "OnPreclaimRewards", 0) == 0x6C9380);
+    std::puts("AUTOMATION_METHOD_FALLBACK_COVERAGE=OK");
+}
+
+static void TestRewardSettlementDecision() {
+    assert(DecideRewardSettlement(false, false, false, false, false) ==
+        RewardSettlementDecision::Wait);
+    assert(DecideRewardSettlement(false, false, false, false, true) ==
+        RewardSettlementDecision::ManualClaimRequired);
+    assert(DecideRewardSettlement(false, false, false, true, false) ==
+        RewardSettlementDecision::CompleteAfterConfirmedClaim);
+    assert(DecideRewardSettlement(true, false, false, true, true) ==
+        RewardSettlementDecision::Wait);
+    std::puts("REWARD_SETTLEMENT=CONFIRMED_CLAIM_ONLY");
+}
+
+static void TestMultichestAutomationStateMachine() {
+    MultichestRuntimeState runtime;
+    assert(runtime.Phase() == MultichestPhase::Hidden);
+
+    runtime.OnShown(reinterpret_cast<void*>(0x1000));
+    runtime.OnShown(reinterpret_cast<void*>(0x1000));
+    assert(runtime.Phase() == MultichestPhase::WaitingForInitialization);
+    assert(runtime.Generation() == 1);
+
+    MultichestSnapshot snapshot{};
+    snapshot.rewardCount = 6;
+    snapshot.actualCount = 6;
+    snapshot.cardsAppearAnimDone = true;
+    snapshot.openAllLock = false;
+    snapshot.openCardsButtonPresent = true;
+    snapshot.openAllActive = true;
+    assert(runtime.Decide(snapshot) == MultichestAction::InvokeOpenAll);
+
+    const MultichestSnapshot beforeOpenAll = snapshot;
+    runtime.OnOpenAllReturned(beforeOpenAll, snapshot);
+    assert(runtime.Phase() == MultichestPhase::WaitingForOpenAll);
+    assert(!runtime.OpenAllInvoked());
+
+    snapshot.pressedOpenAll = true;
+    snapshot.openAllActive = false;
+    runtime.OnOpenAllReturned(beforeOpenAll, snapshot);
+    assert(runtime.Phase() == MultichestPhase::WaitingForRewardSettlement);
+    assert(runtime.OpenAllInvoked());
+
+    snapshot.currentCount = 5;
+    snapshot.pressedOpenAll = false;
+    assert(runtime.Decide(snapshot) == MultichestAction::Wait);
+    snapshot.currentCount = 6;
+    assert(runtime.Decide(snapshot) == MultichestAction::RequestClose);
+
+    runtime.OnCloseRequested();
+    assert(runtime.Phase() == MultichestPhase::CloseRequested);
+    assert(runtime.OnHidden());
+    assert(!runtime.OnHidden());
+    assert(runtime.Phase() == MultichestPhase::Hidden);
+
+    MultichestRuntimeState hiddenOpenAll;
+    hiddenOpenAll.OnShown(reinterpret_cast<void*>(0x2000));
+    snapshot = {};
+    snapshot.rewardCount = 6;
+    snapshot.actualCount = 6;
+    snapshot.cardsAppearAnimDone = true;
+    snapshot.openCardsButtonPresent = true;
+    snapshot.buttonsActive = false;
+    snapshot.openAllActive = false;
+    assert(hiddenOpenAll.Decide(snapshot) == MultichestAction::Wait);
+    std::puts("MULTICHEST_DUPLICATE_SHOW=COALESCED");
+    std::puts("MULTICHEST_SETTLEMENT=COUNT_CONFIRMED");
+    std::puts("MULTICHEST_HIDDEN_EVENT=ONCE");
+}
+
+static void TestAutomationEventOrdering() {
+    assert(CanArmAutoBattleAtBattlefieldStart(AutomationState::StartingBattle));
+    assert(CanArmAutoBattleAtBattlefieldStart(AutomationState::InBattle));
+    assert(!CanArmAutoBattleAtBattlefieldStart(AutomationState::Idle));
+    assert(!CanArmAutoBattleAtBattlefieldStart(AutomationState::CollectingReward));
+    std::puts("AUTOBATTLE_STARTING_STATE=ARMED");
 }
 
 static void TestMainThreadDispatcher() {
@@ -247,12 +535,21 @@ static void TestTypedConfigRegistry() {
 }
 
 int main() {
+    TestMultichestShowForwarding();
+    TestMultichestDelegateGuard();
     TestIl2CppListAdapter();
     TestHookOwnership();
     TestCombatRuntimeGenerations();
     TestCombatModifiers();
     TestArmySideClassification();
     TestAutomationCoordinator();
+    TestAutoBattleTriggerDecision();
+    TestAutoBattleReadinessWithoutStartObserver();
+    TestAutoBattleLifecycleFallbacks();
+    TestAutomationMethodFallbackCoverage();
+    TestRewardSettlementDecision();
+    TestMultichestAutomationStateMachine();
+    TestAutomationEventOrdering();
     TestMainThreadDispatcher();
     TestProfileCrudAndRecovery();
     TestIniMigrationAndLauncherModes();

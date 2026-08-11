@@ -12,6 +12,7 @@
 #include "..\third_party\imgui\imgui_impl_win32.h"
 #include "feature.h"
 #include "profile_store.h"
+#include "safe_call.h"
 // Forward declare — header has it behind #if 0
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -46,6 +47,19 @@ static ID3D11RenderTargetView* g_mainRTV = nullptr;
 static int g_sidebarCategory = 0;
 static char g_featureSearch[64] = {};
 
+// A diagnostic widget must never be able to take down the Unity process. A
+// stale resolver pointer or malformed runtime snapshot is isolated to that
+// feature and recorded for the next log review.
+static void RenderFeatureMenuSafe(Feature* feature) {
+    if (!feature) return;
+    __try {
+        feature->OnMenu();
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        LOG("[UI] OnMenu SEH feature=%s code=0x%08X", feature->name ? feature->name : "?", GetExceptionCode());
+        ImGui::TextColored(ImVec4(1, 0.3f, 0.2f, 1), "Feature UI fault isolated; see el_native.log");
+    }
+}
+
 static const char* FeatureCategory(const char* name) {
     if (!name) return "Diagnostics";
     // CombatRuntime owns the board/entity table; keep it out of the Combat
@@ -54,8 +68,13 @@ static const char* FeatureCategory(const char* name) {
     if (strstr(name, "Combat") || strstr(name, "Energy") || strstr(name, "Damage")) return "Combat";
     if (strstr(name, "Relationship")) return "Relationships";
     if (strstr(name, "Currency") || strstr(name, "Shop")) return "Economy";
-    if (strstr(name, "Debug") || strstr(name, "Resolve") || strstr(name, "AntiCheat")) return "Debug";
-    if (strstr(name, "Roulette") || strstr(name, "Mascot") || strstr(name, "Automation") || strstr(name, "DevMenu")) return "Experimental";
+    // Dumps and probes can touch IL2CPP objects while their status is drawn.
+    // Keep them with resolver/debug tooling instead of the general
+    // Diagnostics page, so opening Diagnostics remains a passive view.
+    if (strstr(name, "Debug") || strstr(name, "Resolve") || strstr(name, "AntiCheat") ||
+        strstr(name, "MonsterDump") || strstr(name, "ResourceDump") ||
+        strstr(name, "Tracer") || strstr(name, "NetLog")) return "Debug";
+    if (strstr(name, "Roulette") || strstr(name, "Automation") || strstr(name, "DevMenu")) return "Experimental";
     if (strstr(name, "Profile")) return "Profiles";
     return "Diagnostics";
 }
@@ -147,7 +166,11 @@ static bool InitImGui(IDXGISwapChain* pSwapChain) {
 // ============================================================
 LRESULT CALLBACK WndProcHook(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     if (ImGui::GetCurrentContext() != nullptr) {
-        if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
+        bool consumed = false;
+        ElGuard("render.wndproc", [&] {
+            consumed = ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
+        });
+        if (consumed)
             return 1; // ImGui consumed
     }
     return CallWindowProc(OriginalWndProc, hWnd, msg, wParam, lParam);
@@ -161,6 +184,10 @@ HRESULT STDMETHODCALLTYPE PresentHook(
     UINT SyncInterval,
     UINT Flags
 ) {
+    // Whole overlay body under one SEH guard: a fault anywhere in the ImGui
+    // frame must not take down the game. OriginalPresent stays outside so a
+    // game-side Present failure is not silently swallowed.
+    ElGuard("render.present", [&] {
     // One-time ImGui init on first successful Present
     if (!g_imguiInitialized) {
         g_imguiInitialized = InitImGui(pSwapChain);
@@ -249,7 +276,7 @@ HRESULT STDMETHODCALLTYPE PresentHook(
                         if (g_featureSearch[0] && strstr(f->name, g_featureSearch) == nullptr) continue;
                         if (ImGui::Checkbox(f->name, &f->enabled)) ConfigMarkDirty();
                         ImGui::SameLine();
-                        f->OnMenu();
+                        RenderFeatureMenuSafe(f);
                     }
                 } else {
                     for (auto* f : g_features) {
@@ -257,7 +284,7 @@ HRESULT STDMETHODCALLTYPE PresentHook(
                         if (g_featureSearch[0] && strstr(f->name, g_featureSearch) == nullptr) continue;
                         if (ImGui::Checkbox(f->name, &f->enabled)) ConfigMarkDirty();
                         ImGui::SameLine();
-                        f->OnMenu();
+                        RenderFeatureMenuSafe(f);
                     }
                 }
                 ImGui::EndChild();
@@ -266,17 +293,33 @@ HRESULT STDMETHODCALLTYPE PresentHook(
             ImGui::End();
         }
 
+        // Feature HUD mini-windows (Chest-Indicator style): drawn even when
+        // the main debug overlay is hidden, so roulette/proxy state stays on
+        // screen during play.  Each enabled feature owns its own ImGui window.
+        if (g_featuresReady) {
+            for (auto* f : g_features) {
+                if (f && f->enabled) {
+                    ElGuard(f->name ? f->name : "feature", [&] { f->OnOverlay(); });
+                }
+            }
+        }
+
         ImGui::Render();
         g_pd3dDeviceContext->OMSetRenderTargets(1, &g_mainRTV, nullptr);
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
     }
 
-    // Fire feature OnUpdate each frame (features use one-shot flags internally)
+    // Fire feature OnUpdate each frame (features use one-shot flags internally).
+    // Isolate per-feature: one faulting OnUpdate must not crash the game, and
+    // the log names the culprit instead of a bare exception dialog.
     if (g_featuresReady) {
         for (auto* f : g_features) {
-            f->OnUpdate();
+            if (!f) continue;
+            ElGuard(f->name ? f->name : "feature", [&] { f->OnUpdate(); });
         }
+        ConfigAutosaveTick();
     }
+    }); // ElGuard render.present
 
     return OriginalPresent(pSwapChain, SyncInterval, Flags);
 }
@@ -292,6 +335,8 @@ HRESULT STDMETHODCALLTYPE ResizeBuffersHook(
     DXGI_FORMAT NewFormat,
     UINT SwapChainFlags
 ) {
+    HRESULT hr = S_OK;
+    ElGuard("render.resize", [&] {
     LOG("[P1] ResizeBuffers(%ux%u, fmt=%u, count=%u)", Width, Height, NewFormat, BufferCount);
 
     // Backbuffer references must all be released before ResizeBuffers or it fails
@@ -300,13 +345,13 @@ HRESULT STDMETHODCALLTYPE ResizeBuffersHook(
     if (g_imguiInitialized)
         ImGui_ImplDX11_InvalidateDeviceObjects();
 
-    HRESULT hr = OriginalResizeBuffers(pSwapChain, BufferCount, Width, Height, NewFormat, SwapChainFlags);
+    hr = OriginalResizeBuffers(pSwapChain, BufferCount, Width, Height, NewFormat, SwapChainFlags);
 
     if (SUCCEEDED(hr) && g_imguiInitialized) {
         if (!ImGui_ImplDX11_CreateDeviceObjects())
             LOG("[P1] ImGui_ImplDX11_CreateDeviceObjects() failed after resize");
     }
-
+    }); // ElGuard render.resize
     return hr;
 }
 

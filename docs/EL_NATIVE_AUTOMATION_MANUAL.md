@@ -3,6 +3,9 @@
 ## 1. Thành phần và phiên bản
 
 - Dùng `D:\Temp\opencode\el_build\injector.exe` để khởi chạy game và nạp `el_native.dll`.
+- `build.bat` tự copy `injector.exe` và `el_native.dll` vào
+  `D:\SteamLibrary\steamapps\common\Everlusting Life`; đổi biến môi trường
+  `EL_GAME_DIR` trước khi build nếu game nằm ở thư mục khác.
 - Đảm bảo thư mục game có `steam_appid.txt` đúng AppID Steam (bản hiện tại đã xử lý trường hợp chạy ngoài Steam).
 - Bật overlay bằng phím tắt đã cấu hình, mở tab **Experimental → Automation**.
 - Log nằm trong thư mục game; tìm các dòng có tiền tố `[AUTOMATION]`.
@@ -12,15 +15,31 @@ Bản native hiện bám theo flow trong `battle_cheat.exe_extracted/auto_battle
 ## 2. Auto Rank / AutoBattle
 
 1. Chọn `Automation mode = AutoBattle`.
-2. Đặt `Delay (ms)` từ 1500–5000 khi thử lần đầu. Đây là thời gian chờ giữa các UI phase, không phải tốc độ trận.
-3. Đặt `Max loops`:
+2. Kiểm tra UI báo `Auto Rank: ready` và `Lapis gate: ready`. Gate mặc định đọc
+   `ItemModule.get_Instance → IsEnoughResource(ResourceType=2, minimum=1)`;
+   `2` là giá trị `ResourceType.gems` trong metadata hiện tại (UI cho phép chỉnh
+   resource type/minimum nếu build game dùng mã Lapis khác).
+   Hai ô `Lapis resource type` và `Minimum Lapis` nằm ngay trong Automation; đặt
+   minimum tối thiểu bằng chi phí một vòng thưởng để vòng sau không bị mở nửa chừng.
+3. Đặt `Delay (ms)` từ 1500–5000 khi thử lần đầu. Đây là thời gian chờ giữa các UI phase, không phải tốc độ trận.
+4. Đặt `Max loops`:
    - `1–100`: tự dừng sau đúng số trận hoàn tất.
    - `0`: chạy liên tục cho đến khi bấm **Stop** (giống `MAX_LOOPS=0` của script tham khảo).
-4. Bấm **Start automation**.
-5. Chờ các trạng thái: `started; play is scheduled` → `Play invoked; battle running` → `result window observed` → `result advanced` → `LeagueBar closed; next loop armed`.
-6. Bấm **Stop** trước khi đổi mode hoặc rời trận. Nút Stop đưa coordinator về `Idle` và không để lại click đang chờ.
+5. Bấm **Start automation**.
+6. Sau khi `BattlefieldWindow.Start` chạy, native lấy `AutoBattleController`, kiểm tra
+   `IsAutoBattleActive`, rồi gọi `OnAutoBattleClicked` — cùng code path với hotkey **A**.
+7. Chờ các trạng thái: `started; play is scheduled` → `Play invoked; battle running` →
+   `battle loaded; autoplay scheduled` → `Auto Rank autoplay enabled` →
+   `result window observed` → `result advanced` → `rewards claimed` →
+   `LeagueBar closed; next loop armed`.
+8. Khi Lapis thấp hơn minimum, automation dừng trước Play hoặc trước reward flow với
+   `Auto Rank stopped: ... no Lapis`; không cố click nhận chest khi không đủ đá.
+9. Bấm **Stop** trước khi đổi mode hoặc rời trận. Nút Stop đưa coordinator về `Idle` và không để lại click đang chờ.
 
-Automation không tự chọn đội hình, không sửa damage và không thay kết quả trận. Nó chỉ gọi Play/next trên main thread và tự xử lý cửa sổ kết quả.
+Automation không tự chọn đội hình, không sửa damage và không thay kết quả trận. Nó gọi
+Play/next và autoplay trên main thread, chờ popup Multichest ổn định rồi gọi listener
+`UGUIButtonListener.HandleClick` của `openCardsButton` một lần (flow này tiếp tục vào `OnOpenAll`), quan sát `ExternalJourneyFighter.ClaimRewardsOnWin`, sau đó ưu tiên
+`MultichestWindow.CloseWindow` (fallback `OnCloseAction`) và đóng LeagueBar theo đúng thứ tự.
 
 ## 3. Derank
 
@@ -36,10 +55,35 @@ Nếu `Derank readiness` không sẵn sàng thì chỉ observer result/trace đ�
 
 ## 4. Kiểm tra hook trước khi chạy
 
+Nếu cần kiểm tra metadata/runtime trước một vòng thật, dùng probe read-only:
+
+```powershell
+cd D:\VSCode\REToolkit
+$env:PYTHONPATH = 'src'
+py -3.13 scripts\probe_auto_rank.py --process "Everlusting Life" --duration 90000
+```
+
+Probe tự tìm PID, in tiến độ/hit lên console, lưu JSONL vào
+`REToolkit\Analysis2\frida\auto-rank-probe.jsonl`; dừng bằng `Ctrl+C` sau khi
+đã đi qua Play → autoplay → reward. Nó chỉ trace, không thay đổi state.
+
+Để xác nhận riêng Open All:
+
+```powershell
+cd D:\VSCode\REToolkit
+$env:PYTHONPATH = 'src'
+py -3.13 scripts\probe_multichest.py --process "Everlusting Life" --duration 120000
+```
+
+Khi probe đang chạy, đi qua một trận Auto Rank và bấm **Open All** một lần.
+Console/JSONL sẽ ghi RVA, field offset, pointer `openCardsButton`, listener
+`HandleClick`, `OnOpenAll`, `CloseWindow` và `WindowHidden` theo thứ tự thực tế.
+
 Trong log cần thấy dạng:
 
 ```text
 [AUTOMATION] result observers ... hooked=1/1/1 play=1 advance=1
+[AUTOMATION] auto-rank controller=... click=... active=... ready=1; lapis getter=... enough=... gate=1 type=2 min=1 claim=...
 [AUTOMATION] derank methods=... resultDelegate=... ready=1
 [AUTOMATION] league methods ... hooked=1/1/1/1 ready=1
 ```
@@ -54,7 +98,7 @@ Trong log cần thấy dạng:
 | Derank Settings/Surrender/Confirm | Có | Có, gated theo field offsets |
 | LeagueBar OnShown/Unlock/Update/OnClose | Có | Có, presenter được xoá trước khi gọi OnClose để tránh gọi kép |
 | `MAX_LOOPS=0` | Có | Có (`0 = unlimited`) |
-| Multichest open-all | Có trong script tham khảo | Có: tự gọi `OnOpenAll`, chờ animation rồi `OnCloseAction` |
+| Multichest open-all | Có trong script tham khảo | Có: click listener của `openCardsButton`, chờ animation rồi đóng window |
 | BundleForceShowWindow | Có trong script tham khảo | Có: `OnFocus` đặt lịch và gọi `OnClose` |
 
 Multichest/Bundle hiện đã bám flow script: mở toàn bộ card thưởng, đóng sau animation và tự dismiss popup bundle. Nếu popup đang chứa một thao tác mua có giá thì Stop trước khi xác nhận.

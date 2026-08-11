@@ -2,6 +2,7 @@
 #include "../framework.h"
 #include "../il2cpp_resolve.h"
 #include "../combat_runtime.h"
+#include "../config_registry.h"
 #include "../../minhook/include/MinHook.h"
 #include "imgui.h"
 #include <cstdint>
@@ -142,6 +143,12 @@ static float __fastcall GetProtectionAmplifyHook(void* self, int32_t dmgType, vo
 BattleCombatFeature::BattleCombatFeature() { name = "Combat"; enabled = false; }
 
 void BattleCombatFeature::Init() {
+    GlobalConfigRegistry().RegisterFloat("combat.heal_multiplier", &m_healMult);
+    GlobalConfigRegistry().RegisterFloat("combat.offense_multiplier", &m_offenseMult);
+    GlobalConfigRegistry().RegisterFloat("combat.defense_multiplier", &m_defenseMult);
+    GlobalConfigRegistry().RegisterBool("combat.god_mode", &m_godMode);
+    GlobalConfigRegistry().RegisterInteger("combat.player_side", &m_playerSide);
+    GlobalConfigRegistry().RegisterBool("combat.track_stats", &m_trackStats);
     Resolved_Side = (GetArmySide_t)ResolveMethodOrFallback(
         "Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units",
         "UnitCore", "get_ArmySide", 0);

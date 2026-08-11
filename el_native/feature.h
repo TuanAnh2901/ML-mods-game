@@ -9,6 +9,9 @@ struct Feature {
     virtual void Init() {}
     virtual void OnUpdate() {}
     virtual void OnMenu() {}
+    // Called every frame while enabled, even when the main debug overlay is
+    // hidden (Chest-Indicator style HUD mini-window).
+    virtual void OnOverlay() {}
 };
 
 extern std::vector<Feature*> g_features;

@@ -28,6 +28,11 @@ static il2cpp_class_get_name_t Resolved_ClassGetName = nullptr;
 static bool s_active = false;
 static int s_count = 0;
 static char s_lastUrl[192] = {0};
+static NetRequestFilter s_filter = nullptr;
+
+void RegisterNetRequestFilter(NetRequestFilter filter) {
+    s_filter = filter;
+}
 
 // System.String layout: 0x10 object header, int32 length, then UTF-16 chars.
 static void CopyIl2CppString(void* str, char* out, size_t outSize) {
@@ -77,6 +82,10 @@ static void __fastcall SendRequest6Hook(void* self, void* url, void* onCompleted
             LOG("[NET] log CRASHED (SEH) on 6-arg SendRequest");
         }
     }
+    if (s_filter && s_filter(url, sendElem)) {
+        LOG("[NET] request filtered by runtime guard");
+        return;
+    }
     Original_SendRequest6(self, url, onCompleted, sendElem, delay,
                           serializerType, webRequestMethod, methodInfo);
 }
@@ -90,6 +99,10 @@ static void __fastcall SendRequest4Hook(void* self, void* url, void* onCompleted
         } __except (EXCEPTION_EXECUTE_HANDLER) {
             LOG("[NET] log CRASHED (SEH) on 4-arg SendRequest");
         }
+    }
+    if (s_filter && s_filter(url, nullptr)) {
+        LOG("[NET] request filtered by runtime guard");
+        return;
     }
     Original_SendRequest4(self, url, onCompleted, serializerType,
                           webRequestMethod, methodInfo);

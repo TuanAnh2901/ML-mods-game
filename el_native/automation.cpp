@@ -2,6 +2,96 @@
 
 #include <algorithm>
 
+AutoBattleTriggerDecision DecideAutoBattleTrigger(
+    bool hasController, bool hasCore, bool unlocked, bool active) {
+    if (!hasController) return AutoBattleTriggerDecision::WaitForController;
+    if (!hasCore || !unlocked) return AutoBattleTriggerDecision::WaitForInitialization;
+    return active ? AutoBattleTriggerDecision::Complete : AutoBattleTriggerDecision::Invoke;
+}
+
+bool CanArmAutoBattleAtBattlefieldStart(AutomationState state) {
+    return state == AutomationState::StartingBattle || state == AutomationState::InBattle;
+}
+
+bool IsAutoBattleRuntimeReady(
+    bool getterResolved, bool clickResolved, bool activeResolved, bool offsetsResolved) {
+    return getterResolved && clickResolved && activeResolved && offsetsResolved;
+}
+
+bool HasAutoBattleStartBarrier(
+    bool startObserverHooked, bool startObserved, bool controllerResolvedAfterBattlefieldStart) {
+    if (startObserverHooked) return startObserved;
+    return controllerResolvedAfterBattlefieldStart;
+}
+
+RewardSettlementDecision DecideRewardSettlement(
+    bool multichestVisible, bool bundleVisible, bool leagueVisible,
+    bool claimGraceElapsed, bool deadlineElapsed) {
+    if (multichestVisible || bundleVisible || leagueVisible)
+        return RewardSettlementDecision::Wait;
+    if (claimGraceElapsed)
+        return RewardSettlementDecision::CompleteAfterConfirmedClaim;
+    return deadlineElapsed ? RewardSettlementDecision::ManualClaimRequired
+                           : RewardSettlementDecision::Wait;
+}
+
+void MultichestRuntimeState::OnShown(void* window) {
+    if (!window) return;
+    if (m_window == window && m_phase != MultichestPhase::Hidden) return;
+    m_window = window;
+    m_phase = MultichestPhase::WaitingForInitialization;
+    ++m_generation;
+    m_openAllInvoked = false;
+    m_hiddenNotified = false;
+}
+
+MultichestAction MultichestRuntimeState::Decide(const MultichestSnapshot& snapshot) const {
+    if (m_phase == MultichestPhase::WaitingForInitialization ||
+        m_phase == MultichestPhase::WaitingForOpenAll) {
+        const bool initialized = snapshot.rewardCount > 0 && snapshot.actualCount > 0 &&
+            snapshot.cardsAppearAnimDone && !snapshot.openAllLock &&
+            snapshot.openCardsButtonPresent &&
+            (snapshot.openAllActive || snapshot.buttonsActive);
+        return initialized && !m_openAllInvoked
+            ? MultichestAction::InvokeOpenAll : MultichestAction::Wait;
+    }
+    if (m_phase == MultichestPhase::OpenAllInvoked ||
+        m_phase == MultichestPhase::WaitingForRewardSettlement) {
+        const bool countSettled = snapshot.actualCount > 0 &&
+            snapshot.currentCount >= snapshot.actualCount;
+        const bool openAllSettled = snapshot.pressedOpenAll && !snapshot.openAllActive;
+        return countSettled || openAllSettled
+            ? MultichestAction::RequestClose : MultichestAction::Wait;
+    }
+    return MultichestAction::Wait;
+}
+
+void MultichestRuntimeState::OnOpenAllReturned(
+    const MultichestSnapshot& before, const MultichestSnapshot& after) {
+    const bool transitioned = (!before.pressedOpenAll && after.pressedOpenAll) ||
+        (before.openAllActive && !after.openAllActive) ||
+        after.currentCount > before.currentCount;
+    if (transitioned) {
+        m_openAllInvoked = true;
+        m_phase = MultichestPhase::WaitingForRewardSettlement;
+    } else {
+        m_phase = MultichestPhase::WaitingForOpenAll;
+    }
+}
+
+void MultichestRuntimeState::OnCloseRequested() {
+    m_phase = MultichestPhase::CloseRequested;
+}
+
+bool MultichestRuntimeState::OnHidden() {
+    const bool notify = !m_hiddenNotified && m_generation != 0;
+    m_hiddenNotified = true;
+    m_window = nullptr;
+    m_phase = MultichestPhase::Hidden;
+    m_openAllInvoked = false;
+    return notify;
+}
+
 void AutomationCoordinator::Configure(AutomationMode mode, int maxLoops) {
     m_mode = mode;
     m_maxLoops = std::max(0, maxLoops);
@@ -34,6 +124,11 @@ void AutomationCoordinator::OnEvent(AutomationEvent event) {
         if (event == AutomationEvent::BattleFinished) m_state = AutomationState::AwaitingResult;
         break;
     case AutomationState::AwaitingResult:
+        if (event == AutomationEvent::RewardCollected) {
+            m_state = AutomationState::CollectingReward;
+        }
+        break;
+    case AutomationState::CollectingReward:
         if (event == AutomationEvent::RewardCollected) {
             ++m_completedLoops;
             m_state = (m_maxLoops > 0 && m_completedLoops >= m_maxLoops)
