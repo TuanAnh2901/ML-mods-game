@@ -776,8 +776,13 @@ void AutomationFeature::OnUpdate() {
             m_rewardsClaimObserved = false;
             m_rewardsClaimAt = 0;
             m_rewardSettlementDeadline = 0;
-            m_nextActionAt = now + static_cast<unsigned long long>(m_delayMs);
-            strncpy_s(m_status, "reward claim confirmed; next loop armed", _TRUNCATE);
+            if (m_coordinator.State() == AutomationState::Done) {
+                m_nextActionAt = 0;
+                strncpy_s(m_status, "reward claim confirmed; automation complete", _TRUNCATE);
+            } else {
+                m_nextActionAt = now + static_cast<unsigned long long>(m_delayMs);
+                strncpy_s(m_status, "reward claim confirmed; next loop armed", _TRUNCATE);
+            }
         } else if (settlement == RewardSettlementDecision::ManualClaimRequired) {
             m_nextActionAt = 0;
             strncpy_s(m_status, "reward settlement pending; claim/window required", _TRUNCATE);
@@ -968,6 +973,12 @@ void AutomationFeature::OnLeagueBarTick() {
         m_rewardsClaimAt = 0;
         m_rewardSettlementDeadline = 0;
     }
+    if (m_coordinator.State() == AutomationState::Done) {
+        m_nextActionAt = 0;
+        strncpy_s(m_status, "LeagueBar closed; automation complete", _TRUNCATE);
+        actiontrace::Push("automation", "LeagueBar closed; all loops done");
+        return;
+    }
     m_nextActionAt = GetTickCount64() + static_cast<unsigned long long>(m_delayMs);
     strncpy_s(m_status, "LeagueBar closed; next loop armed", _TRUNCATE);
     actiontrace::Push("automation", "LeagueBar closed");
@@ -1026,8 +1037,14 @@ void AutomationFeature::OnMultichestHidden() {
     m_waitingMultichest = false;
     if (notifyReward && enabled && m_coordinator.State() == AutomationState::CollectingReward)
         m_coordinator.OnEvent(AutomationEvent::RewardCollected);
-    if (enabled) strncpy_s(m_status, "multichest closed; next loop armed", _TRUNCATE);
-    if (enabled) actiontrace::Push("automation", "multichest hidden; reward collected=%d", notifyReward ? 1 : 0);
+    if (enabled && m_coordinator.State() == AutomationState::Done) {
+        m_nextActionAt = 0;
+        strncpy_s(m_status, "multichest closed; automation complete", _TRUNCATE);
+        actiontrace::Push("automation", "multichest hidden; all loops done");
+    } else if (enabled) {
+        strncpy_s(m_status, "multichest closed; next loop armed", _TRUNCATE);
+        actiontrace::Push("automation", "multichest hidden; reward collected=%d", notifyReward ? 1 : 0);
+    }
 }
 
 void AutomationFeature::OnMultichestTick() {
