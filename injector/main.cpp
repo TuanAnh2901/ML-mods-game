@@ -71,7 +71,14 @@ static void LaunchLog(const std::wstring& folder, const wchar_t* message) {
     struct _stat64 st{};
     const bool rotate = _wstat64(path.c_str(), &st) == 0 && st.st_size >= 16 * 1024;
     std::wofstream file(path.c_str(), rotate ? std::ios::trunc : std::ios::app);
-    if (file) file << message << L"\n";
+    if (file) {
+        SYSTEMTIME now{};
+        GetLocalTime(&now);
+        wchar_t stamp[256];
+        swprintf_s(stamp, L"[%02u:%02u:%02u.%03u] %s",
+            now.wHour, now.wMinute, now.wSecond, now.wMilliseconds, message);
+        file << stamp << L"\n";
+    }
     wprintf(L"%s\n", message);
 }
 

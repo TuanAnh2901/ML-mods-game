@@ -10,14 +10,19 @@
 // logging a measurable frame cost.
 inline void LogWrite(const char* buf)
 {
-    OutputDebugStringA(buf);
+    char stamp[576];
+    SYSTEMTIME st{};
+    GetLocalTime(&st);
+    _snprintf_s(stamp, sizeof(stamp), _TRUNCATE, "[%02u:%02u:%02u.%03u] %s",
+        st.wHour, st.wMinute, st.wSecond, st.wMilliseconds, buf ? buf : "");
+    OutputDebugStringA(stamp);
     static FILE* f = []() -> FILE* {
         struct _stat64 st{};
         const char* path = "el_native.log";
         const bool rotate = _stat64(path, &st) == 0 && st.st_size >= 256 * 1024;
         return fopen(path, rotate ? "w" : "a");
     }();
-    if (f) { fputs(buf, f); fputc('\n', f); fflush(f); }
+    if (f) { fputs(stamp, f); fputc('\n', f); fflush(f); }
 }
 
 inline void LogFmt(const char* fmt, ...)

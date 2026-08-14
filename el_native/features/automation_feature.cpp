@@ -794,14 +794,19 @@ void AutomationFeature::OnUpdate() {
     }
     if (before == AutomationState::Cooldown && m_coordinator.State() == AutomationState::StartingBattle)
         m_nextActionAt = GetTickCount64() + static_cast<unsigned long long>(m_delayMs);
-    if (m_coordinator.State() == AutomationState::StartingBattle) {
+    // AutoBattle-only watchdog. Derank drives its own flow from
+    // BattlefieldWindow.Start; a direct Play click here would fire before the
+    // button's Update has armed it and advance the state machine to a fake
+    // "battle running". The 1000ms grace also lets the MainWindowPlayButton
+    // Update hook win the normal race: it clicks at m_nextActionAt and resets
+    // it to 0, so the watchdog only fires when that hook is dead.
+    if (mode == AutomationMode::AutoBattle && m_coordinator.State() == AutomationState::StartingBattle) {
         const unsigned long long now = GetTickCount64();
         const PlayInvokeDecision decision = DecidePlayInvoke(
             true, m_playButton != nullptr, s_originalPlayClick != nullptr,
-            m_nextActionAt != 0 && now >= m_nextActionAt);
+            m_nextActionAt != 0 && now >= m_nextActionAt + 1000ULL);
         if (decision == PlayInvokeDecision::InvokeViaWatchdog) {
-            if (mode == AutomationMode::AutoBattle && m_lapisGateReady &&
-                !HasLapisBalance(m_lapisResourceType, m_lapisMinimum)) {
+            if (m_lapisGateReady && !HasLapisBalance(m_lapisResourceType, m_lapisMinimum)) {
                 m_coordinator.Stop();
                 strncpy_s(m_status, "Auto Rank stopped before Play: no Lapis", _TRUNCATE);
                 return;

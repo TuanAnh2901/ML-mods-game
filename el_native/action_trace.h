@@ -50,8 +50,11 @@ inline void Push(const char* source, const char* fmt, ...) {
         File() = f;
     }
     if (f) {
-        fprintf(f, "{\"t\":%llu,\"s\":\"%s\",\"m\":\"%s\"}\n",
-            GetTickCount64(), source ? source : "", buf);
+        SYSTEMTIME wall{};
+        GetLocalTime(&wall);
+        fprintf(f, "{\"t\":%llu,\"w\":\"%02u:%02u:%02u.%03u\",\"s\":\"%s\",\"m\":\"%s\"}\n",
+            GetTickCount64(), wall.wHour, wall.wMinute, wall.wSecond, wall.wMilliseconds,
+            source ? source : "", buf);
         fflush(f);
     }
 }
