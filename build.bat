@@ -250,6 +250,7 @@ if %ERRORLEVEL% neq 0 ( echo imgui_impl_win32.cpp FAILED & exit /b 1 )
 "%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /Fe:%BLD%\el_native.dll el_native\dllmain.cpp ^
     minhook\src\buffer.c minhook\src\hook.c minhook\src\trampoline.c minhook\src\hde\hde64.c ^
     %BLD%\el_hook.obj %BLD%\el_compatibility_patch.obj %BLD%\el_multichest_delegate_guard.obj %BLD%\el_automation.obj %BLD%\el_automation_feature.obj %BLD%\el_main_thread_dispatcher.obj %BLD%\el_dev_menu.obj %BLD%\el_render.obj %BLD%\el_resolve.obj %BLD%\el_feature.obj %BLD%\el_game_speed.obj %BLD%\el_currency.obj %BLD%\el_resource_dump.obj ^
+    %BLD%\el_damage.obj %BLD%\el_netlog.obj %BLD%\el_gacha.obj %BLD%\el_monster_dump.obj %BLD%\el_battle_shop.obj %BLD%\el_energy_attack_speed.obj %BLD%\el_battle_result.obj %BLD%\el_anticheat.obj %BLD%\el_tracer.obj %BLD%\el_battle_combat.obj %BLD%\el_combat_runtime.obj %BLD%\el_combat_runtime_adapter.obj %BLD%\el_hook_registry.obj %BLD%\el_profile_store.obj %BLD%\el_config_registry.obj %BLD%\el_profile_ui.obj %BLD%\el_launcher.obj %BLD%\el_combat_runtime_feature.obj %BLD%\el_relationship.obj %BLD%\el_proxy_log_overlay.obj %BLD%\el_action_tracer.obj ^
     %BLD%\imgui.obj %BLD%\imgui_draw.obj %BLD%\imgui_tables.obj %BLD%\imgui_widgets.obj ^
     %BLD%\imgui_impl_dx11.obj %BLD%\imgui_impl_win32.obj ^
     /I minhook\include /I minhook\src /I minhook\src\hde /I %IMGUI% /link /DLL /SUBSYSTEM:WINDOWS d3d11.lib dxgi.lib

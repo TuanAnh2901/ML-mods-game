@@ -17,7 +17,7 @@ using NameFn = void*(__fastcall*)(void*, void*);
 static ButtonFn s_originalClick = nullptr;
 static NameFn s_getName = nullptr;
 static bool s_active = false;
-static OverlayPos s_pos = { "actiontrace.window" };
+static OverlayPos s_pos = { "actiontrace.window", 0.0f, 0.0f, 0.0f, 0.0f, 20.0f, 20.0f };
 
 static void ReadString(void* s, char* out, size_t cap) {
     if (!s || !out || !cap) return;

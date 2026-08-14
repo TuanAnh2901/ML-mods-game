@@ -360,7 +360,14 @@ static void TestRewardSettlementDecision() {
         RewardSettlementDecision::CompleteAfterConfirmedClaim);
     assert(DecideRewardSettlement(true, false, false, true, true) ==
         RewardSettlementDecision::Wait);
-    std::puts("REWARD_SETTLEMENT=CONFIRMED_CLAIM_ONLY");
+}
+
+static void TestPlayInvokeWatchdogDecision() {
+    assert(DecidePlayInvoke(true, true, true, true) == PlayInvokeDecision::InvokeViaWatchdog);
+    assert(DecidePlayInvoke(false, true, true, true) == PlayInvokeDecision::WaitForHook);
+    assert(DecidePlayInvoke(true, false, true, true) == PlayInvokeDecision::WaitForHook);
+    assert(DecidePlayInvoke(true, true, false, true) == PlayInvokeDecision::WaitForHook);
+    assert(DecidePlayInvoke(true, true, true, false) == PlayInvokeDecision::WaitForHook);
 }
 
 static void TestMultichestAutomationStateMachine() {
@@ -548,6 +555,7 @@ int main() {
     TestAutoBattleLifecycleFallbacks();
     TestAutomationMethodFallbackCoverage();
     TestRewardSettlementDecision();
+    TestPlayInvokeWatchdogDecision();
     TestMultichestAutomationStateMachine();
     TestAutomationEventOrdering();
     TestMainThreadDispatcher();

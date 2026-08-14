@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdarg>
 #include <cstring>
+#include <sys/stat.h>
 #include <mutex>
 
 namespace actiontrace {
@@ -41,7 +42,13 @@ inline void Push(const char* source, const char* fmt, ...) {
         if (*Count() < kRing) ++*Count();
     }
     FILE* f = File();
-    if (!f) { f = fopen("el_native_action_trace.jsonl", "ab"); File() = f; }
+    if (!f) {
+        struct _stat64 st{};
+        const char* path = "el_native_action_trace.jsonl";
+        const bool rotate = _stat64(path, &st) == 0 && st.st_size >= 512 * 1024;
+        f = fopen(path, rotate ? "wb" : "ab");
+        File() = f;
+    }
     if (f) {
         fprintf(f, "{\"t\":%llu,\"s\":\"%s\",\"m\":\"%s\"}\n",
             GetTickCount64(), source ? source : "", buf);

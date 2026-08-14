@@ -37,6 +37,11 @@ RewardSettlementDecision DecideRewardSettlement(
     bool multichestVisible, bool bundleVisible, bool leagueVisible,
     bool claimGraceElapsed, bool deadlineElapsed);
 
+enum class PlayInvokeDecision { WaitForHook, InvokeViaWatchdog };
+
+PlayInvokeDecision DecidePlayInvoke(
+    bool inStartingBattle, bool playButtonCached, bool clickMethodResolved, bool deadlineElapsed);
+
 enum class MultichestPhase {
     Hidden, Seen, WaitingForInitialization, WaitingForOpenAll,
     OpenAllInvoked, WaitingForRewardSettlement, CloseRequested

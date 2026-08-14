@@ -17,7 +17,7 @@ static std::string resolvedPath;
 static bool haveLog = false;
 static LONGLONG lastSize = 0;
 static proxylog::State st;
-static OverlayPos s_pos = { "proxylog.window" };
+static OverlayPos s_pos = { "proxylog.window", 0.0f, 0.0f, 0.0f, 0.0f, 460.0f, 20.0f };
 
 static void ResolvePath() {
     if (!logPathOverride.empty()) {

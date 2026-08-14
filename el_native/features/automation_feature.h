@@ -67,6 +67,7 @@ private:
     void* m_surrenderButton = nullptr;
     void* m_confirmButton = nullptr;
     void* m_leaguePresenter = nullptr;
+    void* m_playButton = nullptr;
     void* m_multichestWindow = nullptr;
     void* m_bundleWindow = nullptr;
     void* m_autoBattleController = nullptr;

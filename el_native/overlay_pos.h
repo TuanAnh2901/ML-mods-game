@@ -13,6 +13,8 @@ struct OverlayPos {
     float y = 0.0f;
     float w = 0.0f;
     float h = 0.0f;
+    float defX = 0.0f;
+    float defY = 0.0f;
     bool registered = false;
 
     void Register() {
@@ -30,8 +32,10 @@ struct OverlayPos {
     }
 
     void Apply() {
-        if (x != 0.0f || y != 0.0f)
-            ImGui::SetNextWindowPos(ImVec2(x, y), ImGuiCond_FirstUseEver);
+        const float px = (x == 0.0f && y == 0.0f) ? defX : x;
+        const float py = (x == 0.0f && y == 0.0f) ? defY : y;
+        if (px != 0.0f || py != 0.0f)
+            ImGui::SetNextWindowPos(ImVec2(px, py), ImGuiCond_FirstUseEver);
         if (w > 0.0f && h > 0.0f)
             ImGui::SetNextWindowSize(ImVec2(w, h), ImGuiCond_FirstUseEver);
     }

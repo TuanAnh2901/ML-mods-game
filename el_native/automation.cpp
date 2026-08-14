@@ -35,6 +35,14 @@ RewardSettlementDecision DecideRewardSettlement(
                            : RewardSettlementDecision::Wait;
 }
 
+PlayInvokeDecision DecidePlayInvoke(
+    bool inStartingBattle, bool playButtonCached, bool clickMethodResolved, bool deadlineElapsed) {
+    if (!inStartingBattle || !playButtonCached || !clickMethodResolved)
+        return PlayInvokeDecision::WaitForHook;
+    return deadlineElapsed ? PlayInvokeDecision::InvokeViaWatchdog
+                           : PlayInvokeDecision::WaitForHook;
+}
+
 void MultichestRuntimeState::OnShown(void* window) {
     if (!window) return;
     if (m_window == window && m_phase != MultichestPhase::Hidden) return;

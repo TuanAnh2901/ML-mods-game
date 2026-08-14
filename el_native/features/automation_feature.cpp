@@ -715,6 +715,33 @@ void AutomationFeature::OnUpdate() {
     }
     if (before == AutomationState::Cooldown && m_coordinator.State() == AutomationState::StartingBattle)
         m_nextActionAt = GetTickCount64() + static_cast<unsigned long long>(m_delayMs);
+    if (m_coordinator.State() == AutomationState::StartingBattle) {
+        const unsigned long long now = GetTickCount64();
+        const PlayInvokeDecision decision = DecidePlayInvoke(
+            true, m_playButton != nullptr, s_originalPlayClick != nullptr,
+            m_nextActionAt != 0 && now >= m_nextActionAt);
+        if (decision == PlayInvokeDecision::InvokeViaWatchdog) {
+            if (mode == AutomationMode::AutoBattle && m_lapisGateReady &&
+                !HasLapisBalance(m_lapisResourceType, m_lapisMinimum)) {
+                m_coordinator.Stop();
+                strncpy_s(m_status, "Auto Rank stopped before Play: no Lapis", _TRUNCATE);
+                return;
+            }
+            void* button = m_playButton;
+            m_playButton = nullptr;
+            m_nextActionAt = 0;
+            __try {
+                s_originalPlayClick(button, nullptr);
+                m_coordinator.OnEvent(AutomationEvent::BattleStarted);
+                strncpy_s(m_status, "Play invoked via watchdog; battle running", _TRUNCATE);
+                actiontrace::Push("automation", "Play invoked via watchdog");
+            } __except (EXCEPTION_EXECUTE_HANDLER) {
+                m_nextActionAt = now + 500ULL;
+                m_playButton = button;
+                strncpy_s(m_status, "watchdog play call failed; retry scheduled", _TRUNCATE);
+            }
+        }
+    }
 }
 
 void AutomationFeature::OnMenu() {
@@ -1028,7 +1055,9 @@ void AutomationFeature::OnBundleShown(void* self) {
 }
 
 void AutomationFeature::OnPlayButtonUpdate(void* self) {
-    if (!enabled || m_mode == 0 || m_coordinator.State() != AutomationState::StartingBattle) return;
+    if (!enabled || m_mode == 0 || !self) return;
+    m_playButton = self;
+    if (m_coordinator.State() != AutomationState::StartingBattle) return;
     if (GetTickCount64() < m_nextActionAt || !s_originalPlayClick) return;
     if (m_mode == 1 && m_lapisGateReady && !HasLapisBalance(m_lapisResourceType, m_lapisMinimum)) {
         m_coordinator.Stop();

@@ -69,7 +69,7 @@ static std::wstring JoinPath(const std::wstring& left, const wchar_t* right) {
 static void LaunchLog(const std::wstring& folder, const wchar_t* message) {
     const std::wstring path = JoinPath(folder, L"el_native_launcher.log");
     struct _stat64 st{};
-    const bool rotate = _wstat64(path.c_str(), &st) == 0 && st.st_size >= 64 * 1024;
+    const bool rotate = _wstat64(path.c_str(), &st) == 0 && st.st_size >= 16 * 1024;
     std::wofstream file(path.c_str(), rotate ? std::ios::trunc : std::ios::app);
     if (file) file << message << L"\n";
     wprintf(L"%s\n", message);
