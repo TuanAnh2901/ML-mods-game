@@ -29,6 +29,8 @@ struct AutomationFeature : Feature {
     void OnRewardsClaimed();
     void OnIdleChestShown(void* self);
     void OnIdleChestPreclaim(void* self);
+    void OnRewardClaimShown(void* self);
+    void OnClaimRewardShown(void* self);
 
 private:
     AutomationCoordinator m_coordinator;
@@ -73,6 +75,12 @@ private:
     void* m_autoBattleController = nullptr;
     void* m_autoBattleWindow = nullptr;
     void* m_idleChestPresenter = nullptr;
+    void* m_rewardClaimPresenter = nullptr;
+    void* m_claimRewardWindow = nullptr;
+    bool m_rewardClaimActionInvoked = false;
+    unsigned long long m_rewardClaimAt = 0;
+    unsigned long long m_rewardClaimCloseAt = 0;
+    unsigned long long m_claimRewardCloseAt = 0;
     int32_t m_settingsOffset = -1;
     int32_t m_surrenderOffset = -1;
     int32_t m_leftButtonOffset = -1;

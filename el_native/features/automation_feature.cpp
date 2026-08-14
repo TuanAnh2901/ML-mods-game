@@ -17,6 +17,7 @@ using PlayClickFn = void(__fastcall*)(void*, void*);
 using ResultActionFn = void(__fastcall*)(void*, void*);
 using ButtonFn = void(__fastcall*)(void*, void*);
 using IdleChestShowFn = void(__fastcall*)(void*, void*, void*);
+using ClaimRewardShowFn = void(__fastcall*)(void*, void*, void*, void*);
 using FocusFn = void(__fastcall*)(void*, void*, void*);
 using DelegateInvokeFn = void(__fastcall*)(void*, void*);
 using AutoBattleGetterFn = void*(__fastcall*)(void*, void*);
@@ -61,6 +62,11 @@ static IsEnoughResourceFn s_originalIsEnoughResource = nullptr;
 static ButtonFn s_originalClaimRewards = nullptr;
 static IdleChestShowFn s_originalIdleChestShow = nullptr;
 static ButtonFn s_originalIdleChestPreclaim = nullptr;
+static ShowWindowFn s_originalRewardClaimShow = nullptr;
+static ButtonFn s_originalRewardClaimAction = nullptr;
+static ButtonFn s_originalRewardClaimClose = nullptr;
+static ClaimRewardShowFn s_originalClaimRewardShow = nullptr;
+static ButtonFn s_originalClaimRewardClose = nullptr;
 static AutomationFeature* s_owner = nullptr;
 
 static void __fastcall ShowWindowHook(void* self, void* state, void* context,
@@ -181,6 +187,17 @@ static void __fastcall IdleChestShowHook(void* self, void* onClose, void* mi) {
 static void __fastcall IdleChestPreclaimHook(void* self, void* mi) {
     if (s_originalIdleChestPreclaim) s_originalIdleChestPreclaim(self, mi);
     if (s_owner) s_owner->OnIdleChestPreclaim(self);
+}
+
+static void __fastcall RewardClaimShowHook(void* self, void* actions, void* showResourcesBar,
+                                           void* onHide, void* onStartAnimating, void* mi) {
+    if (s_originalRewardClaimShow) s_originalRewardClaimShow(self, actions, showResourcesBar, onHide, onStartAnimating, mi);
+    if (s_owner) s_owner->OnRewardClaimShown(self);
+}
+
+static void __fastcall ClaimRewardShowHook(void* self, void* onAnimation, void* onHideAction, void* mi) {
+    if (s_originalClaimRewardShow) s_originalClaimRewardShow(self, onAnimation, onHideAction, mi);
+    if (s_owner) s_owner->OnClaimRewardShown(self);
 }
 
 static void __fastcall AutoBattleStartHook(void* self, void* mi) {
@@ -412,6 +429,28 @@ void AutomationFeature::Init() {
     const bool idleChestPreclaimHooked = idleChestPreclaim &&
         InstallObserver("automation.idle-chest.preclaim", idleChestPreclaim,
             &IdleChestPreclaimHook, &s_originalIdleChestPreclaim);
+
+    void* rewardClaimShow = ResolveMethodOrFallback("Assembly-CSharp",
+        "JourneyModuleMP.RewardClaim", "RewardClaimPresenter", "ShowWindow", 4);
+    void* rewardClaimAction = ResolveMethodOrFallback("Assembly-CSharp",
+        "JourneyModuleMP.RewardClaim", "RewardClaimPresenter", "OnClaimAction", 0);
+    void* rewardClaimClose = ResolveMethodOrFallback("Assembly-CSharp",
+        "JourneyModuleMP.RewardClaim", "RewardClaimPresenter", "CloseWindow", 0);
+    s_originalRewardClaimAction = reinterpret_cast<ButtonFn>(rewardClaimAction);
+    s_originalRewardClaimClose = reinterpret_cast<ButtonFn>(rewardClaimClose);
+    const bool rewardClaimShowHooked = rewardClaimShow &&
+        InstallObserver("automation.reward-claim.show", rewardClaimShow,
+            &RewardClaimShowHook, &s_originalRewardClaimShow);
+
+    void* claimRewardShow = ResolveMethodOrFallback("Assembly-CSharp",
+        "UI_Scripts.WindowManager", "ClaimRewardWindow", "Show", 2);
+    void* claimRewardClose = ResolveMethodOrFallback("Assembly-CSharp",
+        "UI_Scripts.WindowManager", "ClaimRewardWindow", "Close", 0);
+    s_originalClaimRewardClose = reinterpret_cast<ButtonFn>(claimRewardClose);
+    const bool claimRewardShowHooked = claimRewardShow &&
+        InstallObserver("automation.claim-reward.show", claimRewardShow,
+            &ClaimRewardShowHook, &s_originalClaimRewardShow);
+
     const bool continueHooked = InstallObserver("automation.result.continue", continueShow,
         ResultActionFn(&ContinueShowHook), &s_originalContinue);
     m_advanceHooked = playNext != nullptr || hide != nullptr;
@@ -570,6 +609,9 @@ void AutomationFeature::Init() {
         m_autoBattleUnlockedOffset, m_autoBattleReady ? 1 : 0,
         itemGetter, enoughResource, m_lapisGateReady ? 1 : 0, m_lapisResourceType, m_lapisMinimum, claimRewards,
         idleChestShow, idleChestPreclaim, idleChestShowHooked ? 1 : 0, idleChestPreclaimHooked ? 1 : 0);
+    LOG("[AUTOMATION] reward-claim show=%p action=%p close=%p hooked=%d; claim-reward show=%p close=%p hooked=%d",
+        rewardClaimShow, rewardClaimAction, rewardClaimClose, rewardClaimShowHooked ? 1 : 0,
+        claimRewardShow, claimRewardClose, claimRewardShowHooked ? 1 : 0);
     LOG("[AUTOMATION] derank methods=%d/%d/%d/%d offsets=%d/%d/%d resultDelegate=%d ready=%d",
         h1 ? 1 : 0, h2 ? 1 : 0, h3 ? 1 : 0, h4 ? 1 : 0,
         m_settingsOffset, m_surrenderOffset, m_leftButtonOffset,
@@ -684,6 +726,43 @@ void AutomationFeature::OnUpdate() {
             m_idleChestPreclaimInvoked = false;
             strncpy_s(m_status, "pre-reward chest claim failed; retry pending", _TRUNCATE);
         }
+    }
+    if (m_coordinator.State() == AutomationState::CollectingReward && m_rewardClaimPresenter) {
+        const unsigned long long now = GetTickCount64();
+        void* presenter = m_rewardClaimPresenter;
+        if (!m_rewardClaimActionInvoked && s_originalRewardClaimAction &&
+            now >= m_rewardClaimAt) {
+            m_rewardClaimActionInvoked = true;
+            if (CallResultActionSafe(reinterpret_cast<ResultActionFn>(s_originalRewardClaimAction),
+                    presenter, "RewardClaimPresenter.OnClaimAction")) {
+                m_rewardClaimCloseAt = now + 250ULL;
+                strncpy_s(m_status, "reward claim action dispatched; close scheduled", _TRUNCATE);
+            } else {
+                m_rewardClaimActionInvoked = false;
+                m_rewardClaimAt = now + 500ULL;
+                strncpy_s(m_status, "reward claim action failed; retry pending", _TRUNCATE);
+            }
+        } else if (m_rewardClaimActionInvoked && s_originalRewardClaimClose &&
+            now >= m_rewardClaimCloseAt) {
+            m_rewardClaimPresenter = nullptr;
+            m_rewardClaimActionInvoked = false;
+            m_rewardClaimAt = 0;
+            m_rewardClaimCloseAt = 0;
+            CallResultActionSafe(reinterpret_cast<ResultActionFn>(s_originalRewardClaimClose),
+                presenter, "RewardClaimPresenter.CloseWindow");
+            strncpy_s(m_status, "reward claim section closed", _TRUNCATE);
+            actiontrace::Push("automation", "reward claim section closed");
+        }
+    }
+    if (m_coordinator.State() == AutomationState::CollectingReward && m_claimRewardWindow &&
+        s_originalClaimRewardClose && GetTickCount64() >= m_claimRewardCloseAt) {
+        void* window = m_claimRewardWindow;
+        m_claimRewardWindow = nullptr;
+        m_claimRewardCloseAt = 0;
+        CallResultActionSafe(reinterpret_cast<ResultActionFn>(s_originalClaimRewardClose),
+            window, "ClaimRewardWindow.Close");
+        strncpy_s(m_status, "claim reward window closed", _TRUNCATE);
+        actiontrace::Push("automation", "claim reward window closed");
     }
     if (m_coordinator.State() == AutomationState::CollectingReward) {
         const unsigned long long now = GetTickCount64();
@@ -829,6 +908,12 @@ void AutomationFeature::OnResultWindowShown() {
     m_idleChestPresenter = nullptr;
     m_idleChestPreclaimInvoked = false;
     m_idleChestPreclaimAt = 0;
+    m_rewardClaimPresenter = nullptr;
+    m_claimRewardWindow = nullptr;
+    m_rewardClaimActionInvoked = false;
+    m_rewardClaimAt = 0;
+    m_rewardClaimCloseAt = 0;
+    m_claimRewardCloseAt = 0;
     m_rewardsClaimAt = 0;
     m_rewardSettlementDeadline = 0;
     m_nextActionAt = GetTickCount64() + static_cast<unsigned long long>(m_delayMs);
@@ -1157,6 +1242,30 @@ void AutomationFeature::OnIdleChestPreclaim(void* self) {
     LOG("[AUTOMATION] idle chest preclaim invoked presenter=%p time=%llu", self, m_rewardsClaimAt);
     strncpy_s(m_status, "pre-reward chest claimed; waiting for reward window", _TRUNCATE);
     actiontrace::Push("automation", "idle chest preclaim invoked");
+}
+
+void AutomationFeature::OnRewardClaimShown(void* self) {
+    if (!enabled || m_mode != 1 || !self ||
+        m_coordinator.State() != AutomationState::CollectingReward) return;
+    m_rewardClaimPresenter = self;
+    m_rewardClaimActionInvoked = false;
+    m_rewardClaimAt = GetTickCount64() + 250ULL;
+    m_rewardClaimCloseAt = 0;
+    m_rewardsClaimObserved = true;
+    m_rewardsClaimAt = GetTickCount64();
+    strncpy_s(m_status, "reward claim section shown; claim scheduled", _TRUNCATE);
+    actiontrace::Push("automation", "reward claim section shown");
+}
+
+void AutomationFeature::OnClaimRewardShown(void* self) {
+    if (!enabled || m_mode != 1 || !self ||
+        m_coordinator.State() != AutomationState::CollectingReward) return;
+    m_claimRewardWindow = self;
+    m_claimRewardCloseAt = GetTickCount64() + 250ULL;
+    m_rewardsClaimObserved = true;
+    m_rewardsClaimAt = GetTickCount64();
+    strncpy_s(m_status, "claim reward window shown; close scheduled", _TRUNCATE);
+    actiontrace::Push("automation", "claim reward window shown");
 }
 
 void AutomationFeature::OnBattlefieldStart(void* self) {
