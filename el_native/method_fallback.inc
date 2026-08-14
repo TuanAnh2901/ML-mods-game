@@ -13,7 +13,7 @@ typedef struct {
     uintptr_t rva;
 } MethodFallbackEntry;
 
-static MethodFallbackEntry g_methodFallbackTable[168] = {
+static MethodFallbackEntry g_methodFallbackTable[173] = {
     {"Assembly-CSharp", "NewAssets.Scripts.DataClasses", "MonsterStaticData", "get_monsterId", 0, 0x595540},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "SetTimescaleProvider", 1, 0x59BCD0},
     {"Assembly-CSharp", "AutoChess.LocalServer", "LocalMatchTimer", "get_IsPaused", 0, 0x5B7830},
@@ -28,6 +28,9 @@ static MethodFallbackEntry g_methodFallbackTable[168] = {
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.CustomTimescale", "ScalableTimescaleProvider", "get_CustomTimescale", 0, 0x6A7A80},
     {"Assembly-CSharp", "JourneyModuleMP.IdleChest", "IdleChestPresenter", "OnPreclaimRewards", 0, 0x6C9380},
     {"Assembly-CSharp", "JourneyModuleMP.IdleChest", "IdleChestPresenter", "ShowWindow", 1, 0x6C9BE0},
+    {"Assembly-CSharp", "JourneyModuleMP.RewardClaim", "RewardClaimPresenter", "CloseWindow", 0, 0x6D6050},
+    {"Assembly-CSharp", "JourneyModuleMP.RewardClaim", "RewardClaimPresenter", "OnClaimAction", 0, 0x6D62A0},
+    {"Assembly-CSharp", "JourneyModuleMP.RewardClaim", "RewardClaimPresenter", "ShowWindow", 4, 0x6D6A70},
     {"Assembly-CSharp", "UGUIVisual", "UGUIButtonListener", "HandleClick", 0, 0x6DBC80},
     {"Assembly-CSharp", "UGUIVisual", "UGUIButtonListener", "Update", 0, 0x6DC6A0},
     {"Assembly-CSharp", "AutoChess.CoreGameplay.Fight.Units", "BattleUnit", "get_Data", 0, 0x6EFE70},
@@ -46,6 +49,8 @@ static MethodFallbackEntry g_methodFallbackTable[168] = {
     {"Assembly-CSharp", "CardRoulette", "CardRouletteModel", "ParseRewards", 1, 0x878350},
     {"Assembly-CSharp", "AutoChess.MiniEvents.MiniEventModules.EventsPass.Data", "EventsPassMiniEventData", "get_Level", 0, 0x878700},
     {"Assembly-CSharp", "AutoChess.MiniEvents.MiniEventModules.EventsPass.Data", "EventsPassMiniEventData", "get_EventPassProgress", 0, 0x878720},
+    {"Assembly-CSharp", "UI_Scripts.WindowManager", "ClaimRewardWindow", "Close", 0, 0x976FC0},
+    {"Assembly-CSharp", "UI_Scripts.WindowManager", "ClaimRewardWindow", "Show", 2, 0x977250},
     {"Assembly-CSharp", "UI_Scripts.WindowManager", "MultichestWindow", "CloseWindow", 0, 0x97EC60},
     {"Assembly-CSharp", "UI_Scripts.WindowManager", "MultichestWindow", "OnCloseAction", 0, 0x97F7C0},
     {"Assembly-CSharp", "UI_Scripts.WindowManager", "MultichestWindow", "OnEnable", 0, 0x97F8D0},

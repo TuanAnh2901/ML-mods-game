@@ -285,6 +285,19 @@ DESIRED: list[tuple[Any, ...]] = [
                                 "ShowWindow", "Assembly-CSharp", None, 1),
     ("JourneyModuleMP.IdleChest.IdleChestPresenter",
                                 "OnPreclaimRewards", "Assembly-CSharp", None, 0),
+    # Pre-multichest reward sections claimed/closed by the automation loop.
+    # ShowWindow carries the reward-actions/onHide delegates; OnClaimAction
+    # triggers the claim animation and CloseWindow hides the section.
+    ("JourneyModuleMP.RewardClaim.RewardClaimPresenter",
+                                "ShowWindow", "Assembly-CSharp", None, 4),
+    ("JourneyModuleMP.RewardClaim.RewardClaimPresenter",
+                                "OnClaimAction", "Assembly-CSharp", None, 0),
+    ("JourneyModuleMP.RewardClaim.RewardClaimPresenter",
+                                "CloseWindow", "Assembly-CSharp", None, 0),
+    ("UI_Scripts.WindowManager.ClaimRewardWindow",
+                                "Show", "Assembly-CSharp", None, 2),
+    ("UI_Scripts.WindowManager.ClaimRewardWindow",
+                                "Close", "Assembly-CSharp", None, 0),
     ("AutoChess.UIScripts.WindowScripts.MainWindowPlayButton",
                                 "OnPlayClick", "Assembly-CSharp", None, 0),
     ("AutoChess.UIScripts.WindowScripts.MainWindowPlayButton",
