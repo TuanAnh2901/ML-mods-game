@@ -813,6 +813,8 @@ void AutomationFeature::OnUpdate() {
         if (decision == PlayInvokeDecision::InvokeViaWatchdog) {
             if (m_lapisGateReady && !HasLapisBalance(m_lapisResourceType, m_lapisMinimum)) {
                 m_coordinator.Stop();
+                ResetRuntimeState();
+                m_nextActionAt = 0;
                 strncpy_s(m_status, "Auto Rank stopped before Play: no Lapis", _TRUNCATE);
                 return;
             }
@@ -821,15 +823,30 @@ void AutomationFeature::OnUpdate() {
             m_nextActionAt = 0;
             __try {
                 s_originalPlayClick(button, nullptr);
+                m_playWatchdogRetries = 0;
                 m_coordinator.OnEvent(AutomationEvent::BattleStarted);
                 strncpy_s(m_status, "Play invoked via watchdog; battle running", _TRUNCATE);
                 actiontrace::Push("automation", "Play invoked via watchdog");
             } __except (EXCEPTION_EXECUTE_HANDLER) {
+                if (++m_playWatchdogRetries >= 5) {
+                    m_coordinator.OnEvent(AutomationEvent::Failed);
+                    strncpy_s(m_status, "watchdog play failed 5x; automation stopped", _TRUNCATE);
+                    actiontrace::Push("err", "watchdog play failed 5x; automation stopped");
+                    return;
+                }
                 m_nextActionAt = now + 500ULL;
                 m_playButton = button;
                 strncpy_s(m_status, "watchdog play call failed; retry scheduled", _TRUNCATE);
             }
         }
+    }
+    if (mode == AutomationMode::Derank && m_derankPhase != DerankPhase::Idle &&
+        m_derankPhaseDeadlineAt != 0 && GetTickCount64() >= m_derankPhaseDeadlineAt) {
+        m_coordinator.OnEvent(AutomationEvent::Failed);
+        ResetRuntimeState();
+        m_nextActionAt = 0;
+        strncpy_s(m_status, "derank phase timeout; automation stopped", _TRUNCATE);
+        actiontrace::Push("err", "derank phase timeout; automation stopped");
     }
 }
 
@@ -849,7 +866,11 @@ void AutomationFeature::OnMenu() {
     if (m_lapisResourceType < 0) m_lapisResourceType = 0;
     if (m_lapisMinimum < 0) m_lapisMinimum = 0;
     ImGui::Text("LeagueBar: %s", m_leagueReady ? "hooked; auto-close" : "trace-only");
-    ImGui::Text("Rewards: multichest=%s bundle=%s", m_multichestReady ? "auto-open/close" : "trace-only",
+    ImGui::Text("Rewards: idleChest=%s rewardClaim=%s claimReward=%s multichest=%s bundle=%s",
+        s_originalIdleChestPreclaim ? "auto-claim" : "trace-only",
+        s_originalRewardClaimAction ? "auto-claim/close" : "trace-only",
+        s_originalClaimRewardClose ? "auto-close" : "trace-only",
+        m_multichestReady ? "auto-open/close" : "trace-only",
         m_bundleReady ? "auto-dismiss" : "trace-only");
     ImGui::Text("Fields: settings=%s surrender=%s confirm=%s result delegate=%s",
         m_settingsOffset >= 0 ? "ok" : "missing", m_surrenderOffset >= 0 ? "ok" : "missing",
@@ -875,13 +896,8 @@ void AutomationFeature::OnMenu() {
     ImGui::SameLine();
     if (ImGui::Button("Stop")) {
         m_coordinator.Stop();
-        m_autoBattleArmed = false;
-        m_autoBattleInitWaitLogged = false;
+        ResetRuntimeState();
         m_nextActionAt = 0;
-        m_multichestOpenAt = 0;
-        m_multichestCloseAt = 0;
-        m_multichestWindow = nullptr;
-        m_waitingMultichest = false;
         strncpy_s(m_status, "stopped", _TRUNCATE);
         actiontrace::Push("automation", "stopped by user");
     }
@@ -893,11 +909,7 @@ void AutomationFeature::OnMenu() {
     ImGui::Text("%s", m_status);
 }
 
-void AutomationFeature::OnResultWindowShown() {
-    if (!enabled || !m_observerResolved) return;
-    if (m_coordinator.State() == AutomationState::StartingBattle)
-        m_coordinator.OnEvent(AutomationEvent::BattleStarted);
-    m_coordinator.OnEvent(AutomationEvent::BattleFinished);
+void AutomationFeature::ResetRuntimeState() {
     m_resultWindow = nullptr;
     m_derankPhase = DerankPhase::Idle;
     m_settingsButton = nullptr;
@@ -908,12 +920,21 @@ void AutomationFeature::OnResultWindowShown() {
     m_leagueCloseAt = 0;
     m_multichestWindow = nullptr;
     m_waitingMultichest = false;
+    m_multichestOpenAt = 0;
+    m_multichestOpenDeadline = 0;
     m_multichestCloseAt = 0;
+    m_multichestRetryCount = 0;
+    m_multichestSeedClickInvoked = false;
     m_bundleWindow = nullptr;
     m_bundleCloseAt = 0;
     m_autoBattleController = nullptr;
     m_autoBattleArmed = false;
+    m_autoBattleClickInvoked = false;
     m_autoBattleInitWaitLogged = false;
+    m_autoBattleRetryCount = 0;
+    m_autoBattleAt = 0;
+    m_playButton = nullptr;
+    m_playWatchdogRetries = 0;
     m_rewardsClaimObserved = false;
     m_idleChestPresenter = nullptr;
     m_idleChestPreclaimInvoked = false;
@@ -926,6 +947,15 @@ void AutomationFeature::OnResultWindowShown() {
     m_claimRewardCloseAt = 0;
     m_rewardsClaimAt = 0;
     m_rewardSettlementDeadline = 0;
+    m_derankPhaseDeadlineAt = 0;
+}
+
+void AutomationFeature::OnResultWindowShown() {
+    if (!enabled || !m_observerResolved) return;
+    if (m_coordinator.State() == AutomationState::StartingBattle)
+        m_coordinator.OnEvent(AutomationEvent::BattleStarted);
+    m_coordinator.OnEvent(AutomationEvent::BattleFinished);
+    ResetRuntimeState();
     m_nextActionAt = GetTickCount64() + static_cast<unsigned long long>(m_delayMs);
     strncpy_s(m_status, "result window observed; advance scheduled", _TRUNCATE);
     actiontrace::Push("automation", "result window shown; advance scheduled");
@@ -1016,6 +1046,10 @@ void AutomationFeature::OnMultichestShown(void* self) {
     m_multichestWindow = self;
     m_multichestRuntime.OnShown(self);
     m_waitingMultichest = true;
+    // The multichest appearing means the claim already happened; mark it so
+    // the tick can RequestClose even when ClaimRewardsOnWin never fired.
+    m_rewardsClaimObserved = true;
+    m_rewardsClaimAt = GetTickCount64();
     // Do not call OnOpenAll from OnEnable/Start: those callbacks can run
     // before the pooled window has finished binding its reward controller.
     // Defer one tick so all callbacks collapse to a single attempt.
@@ -1168,11 +1202,21 @@ void AutomationFeature::OnPlayButtonUpdate(void* self) {
     if (GetTickCount64() < m_nextActionAt || !s_originalPlayClick) return;
     if (m_mode == 1 && m_lapisGateReady && !HasLapisBalance(m_lapisResourceType, m_lapisMinimum)) {
         m_coordinator.Stop();
+        ResetRuntimeState();
+        m_nextActionAt = 0;
         strncpy_s(m_status, "Auto Rank stopped before Play: no Lapis", _TRUNCATE);
         return;
     }
     m_nextActionAt = 0;
-    s_originalPlayClick(self, nullptr);
+    m_playWatchdogRetries = 0;
+    __try {
+        s_originalPlayClick(self, nullptr);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        strncpy_s(m_status, "play click failed; retry via watchdog", _TRUNCATE);
+        m_playButton = nullptr;
+        return;
+    }
+    m_playButton = nullptr;
     m_coordinator.OnEvent(AutomationEvent::BattleStarted);
     strncpy_s(m_status, "Play invoked; battle running", _TRUNCATE);
     actiontrace::Push("automation", "Play invoked");
@@ -1222,7 +1266,7 @@ void AutomationFeature::OnAutoBattleControllerStarted(void* controller) {
     m_autoBattleControllerStarted = true;
     if (enabled && m_mode == 1 && CanArmAutoBattleAtBattlefieldStart(m_coordinator.State())) {
         m_autoBattleArmed = m_autoBattleReady;
-        m_autoBattleAt = GetTickCount64();
+        m_autoBattleAt = GetTickCount64() + static_cast<unsigned long long>(m_delayMs);
     }
     LOG("[AUTOMATION] AutoBattleController.Start controller=%p time=%llu", controller, GetTickCount64());
 }
@@ -1313,6 +1357,7 @@ void AutomationFeature::OnBattlefieldStart(void* self) {
     ReadObjectPointer(self, m_settingsOffset, &m_settingsButton);
     if (!m_settingsButton) { strncpy_s(m_status, "settings button pointer unavailable", _TRUNCATE); return; }
     m_derankPhase = DerankPhase::Settings;
+    m_derankPhaseDeadlineAt = GetTickCount64() + 15000ULL;
     m_nextActionAt = GetTickCount64() + static_cast<unsigned long long>(m_delayMs);
     strncpy_s(m_status, "battle loaded; settings click scheduled", _TRUNCATE);
 }
@@ -1322,6 +1367,7 @@ void AutomationFeature::OnBattleSettingsUpdate(void* self) {
     ReadObjectPointer(self, m_surrenderOffset, &m_surrenderButton);
     if (!m_surrenderButton) return;
     m_derankPhase = DerankPhase::Surrender;
+    m_derankPhaseDeadlineAt = GetTickCount64() + 15000ULL;
     m_nextActionAt = GetTickCount64() + 1000;
     strncpy_s(m_status, "surrender button captured", _TRUNCATE);
 }
@@ -1331,6 +1377,7 @@ void AutomationFeature::OnConfirmShown(void* self) {
     ReadObjectPointer(self, m_leftButtonOffset, &m_confirmButton);
     if (!m_confirmButton) return;
     m_derankPhase = DerankPhase::Confirm;
+    m_derankPhaseDeadlineAt = GetTickCount64() + 15000ULL;
     m_nextActionAt = GetTickCount64() + 1000;
     strncpy_s(m_status, "surrender confirmation captured", _TRUNCATE);
 }

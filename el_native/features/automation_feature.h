@@ -31,6 +31,7 @@ struct AutomationFeature : Feature {
     void OnIdleChestPreclaim(void* self);
     void OnRewardClaimShown(void* self);
     void OnClaimRewardShown(void* self);
+    void ResetRuntimeState();
 
 private:
     AutomationCoordinator m_coordinator;
@@ -109,6 +110,8 @@ private:
     int m_multichestRetryCount = 0;
     bool m_multichestSeedClickInvoked = false;
     int m_autoBattleRetryCount = 0;
+    int m_playWatchdogRetries = 0;
+    unsigned long long m_derankPhaseDeadlineAt = 0;
     bool ReadMultichestSnapshot(MultichestSnapshot* snapshot) const;
     enum class DerankPhase { Idle, Settings, CaptureSurrender, Surrender, AwaitConfirm, Confirm };
     DerankPhase m_derankPhase = DerankPhase::Idle;
