@@ -55,6 +55,7 @@ struct MultichestSnapshot {
     bool openAllLock = false;
     bool openCardsButtonPresent = false;
     bool buttonsActive = false;
+    void* openCardsButton = nullptr;
 };
 
 class MultichestRuntimeState {

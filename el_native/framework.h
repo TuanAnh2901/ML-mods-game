@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <cstdio>
 #include <cstdarg>
+#include <sys/stat.h>
 
 // Single shared FILE* for the whole DLL. An inline function's static local has
 // one instance across all TUs, so no extra .cpp / build.bat entry is needed.
@@ -10,7 +11,12 @@
 inline void LogWrite(const char* buf)
 {
     OutputDebugStringA(buf);
-    static FILE* f = fopen("el_native.log", "a");
+    static FILE* f = []() -> FILE* {
+        struct _stat64 st{};
+        const char* path = "el_native.log";
+        const bool rotate = _stat64(path, &st) == 0 && st.st_size >= 512 * 1024;
+        return fopen(path, rotate ? "w" : "a");
+    }();
     if (f) { fputs(buf, f); fputc('\n', f); fflush(f); }
 }
 

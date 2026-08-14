@@ -39,8 +39,14 @@ def write_message(output, message, data):
     payload = message.get("payload")
     if isinstance(payload, dict):
         event = payload.get("event")
-        if event in {"hook_installed", "enter", "leave", "trace_ready"}:
-            print(json.dumps(payload, ensure_ascii=True), flush=True)
+        if event == "enter":
+            print(f"[CALL] {payload.get('className')}.{payload.get('methodName')} "
+                  f"self={payload.get('self')} button={payload.get('buttonName')}",
+                  flush=True)
+        elif event in {"ready", "done", "error", "hook_installed", "trace_ready"}:
+            print(f"[{event}] {json.dumps(payload, ensure_ascii=True)}", flush=True)
+        else:
+            print(f"[{event}] {json.dumps(payload, ensure_ascii=True)}", flush=True)
 
 
 def main() -> int:

@@ -38,9 +38,11 @@ static void ReadString(void* s, char* out, size_t cap) {
 }
 
 // The resolver's imageHint filter requires an exact image-name match, and
-// Unity image names differ between builds.  Try the known spellings; on total
-// failure fall back to the object's IL2CPP class name so clicks never render
-// as a bare "?".
+// Unity image names differ between builds.  Try the known spellings; the
+// metadata walk still fails for UnityEngine.CoreModule in this build (the
+// resolver needs il2cpp_image_get_name which is absent), so fall back to the
+// verified native RVA from method-pointer-map.json: UnityEngine.Object::get_name
+// = 0x43CA3B0.  ReadClassName keeps clicks readable if even that is missing.
 static void* ResolveGetName() {
     static void* cached = nullptr;
     static bool tried = false;
@@ -50,6 +52,10 @@ static void* ResolveGetName() {
     for (const char* hint : hints) {
         cached = ResolveMethodOrFallback(hint, "UnityEngine", "Object", "get_name", 0);
         if (cached) break;
+    }
+    if (!cached) {
+        HMODULE ga = GetModuleHandleA("GameAssembly.dll");
+        if (ga) cached = (void*)((uintptr_t)ga + 0x43CA3B0);
     }
     return cached;
 }
@@ -142,7 +148,6 @@ void ActionTracerRender() {
 }
 void ActionTracerFeature::OnOverlay() {
     s_pos.Apply();
-    ImGui::SetNextWindowSize(ImVec2(440, 260), ImGuiCond_FirstUseEver);
     ImGui::Begin("Action Trace", nullptr, ImGuiWindowFlags_NoSavedSettings);
     ImGui::Text("Automation + UI clicks (last %d)", actiontrace::Count());
     ImGui::Separator();
@@ -153,3 +158,4 @@ void ActionTracerFeature::OnOverlay() {
 
 static ActionTracerFeature g_feature;
 static int g_registered = (RegisterFeature(&g_feature), 0);
+

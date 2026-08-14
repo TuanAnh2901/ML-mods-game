@@ -98,6 +98,7 @@ private:
     unsigned long long m_bundleCloseAt = 0;
     MultichestRuntimeState m_multichestRuntime;
     int m_multichestRetryCount = 0;
+    bool m_multichestSeedClickInvoked = false;
     int m_autoBattleRetryCount = 0;
     bool ReadMultichestSnapshot(MultichestSnapshot* snapshot) const;
     enum class DerankPhase { Idle, Settings, CaptureSurrender, Surrender, AwaitConfirm, Confirm };

@@ -45,6 +45,7 @@ static MultichestShowFn s_originalMultichestShow = nullptr;
 static ButtonFn s_originalMultichestOnEnable = nullptr;
 static ButtonFn s_originalMultichestStart = nullptr;
 static ButtonFn s_originalMultichestOpenAll = nullptr;
+static ButtonFn s_originalMultichestButtonClick = nullptr;
 static ButtonFn s_originalMultichestCloseWindow = nullptr;
 static ButtonFn s_originalMultichestCloseAction = nullptr;
 static ButtonFn s_originalMultichestHidden = nullptr;
@@ -522,6 +523,7 @@ void AutomationFeature::Init() {
         "UI_Scripts.WindowManager", "MultichestWindow", "Start", 0);
     void* multichestOpenAll = ResolveMethodOrFallback("Assembly-CSharp",
         "UI_Scripts.WindowManager", "MultichestWindow", "OnOpenAll", 0);
+    void* multichestButtonClick = ResolveMethodOrFallback("Assembly-CSharp", "", "ButtonListener", "OnClick", 0);
     void* multichestCloseWindow = ResolveMethodOrFallback("Assembly-CSharp",
         "UI_Scripts.WindowManager", "MultichestWindow", "CloseWindow", 0);
     void* multichestClose = ResolveMethodOrFallback("Assembly-CSharp",
@@ -537,6 +539,13 @@ void AutomationFeature::Init() {
     const bool mh4 = InstallObserver("automation.multichest.hidden", multichestHidden,
         ButtonFn(&MultichestHiddenHook), &s_originalMultichestHidden);
     s_originalMultichestOpenAll = reinterpret_cast<ButtonFn>(multichestOpenAll);
+    s_originalMultichestButtonClick = reinterpret_cast<ButtonFn>(multichestButtonClick);
+    if (!s_originalMultichestButtonClick) {
+        HMODULE gameAssembly = GetModuleHandleA("GameAssembly.dll");
+        if (gameAssembly)
+            s_originalMultichestButtonClick = reinterpret_cast<ButtonFn>(
+                reinterpret_cast<uintptr_t>(gameAssembly) + 0x9403B0);
+    }
     s_originalMultichestCloseWindow = reinterpret_cast<ButtonFn>(multichestCloseWindow);
     s_originalMultichestCloseAction = reinterpret_cast<ButtonFn>(multichestClose);
     m_multichestReady = (mh2 || mh3) && s_originalMultichestOpenAll &&
@@ -831,6 +840,17 @@ void AutomationFeature::OnLeagueBarTick() {
         strncpy_s(m_status, "LeagueBar close skipped after safety check", _TRUNCATE);
         return;
     }
+    // LeagueBar is the final reward surface for both modes.  Complete the
+    // collecting state here instead of waiting for a claim observer that is
+    // absent on some battle-result variants; OnUpdate then advances Cooldown
+    // to StartingBattle and the existing Play hook starts the next loop.
+    if (m_coordinator.State() == AutomationState::CollectingReward &&
+        !m_waitingMultichest && !m_bundleWindow) {
+        m_coordinator.OnEvent(AutomationEvent::RewardCollected);
+        m_rewardsClaimObserved = false;
+        m_rewardsClaimAt = 0;
+        m_rewardSettlementDeadline = 0;
+    }
     m_nextActionAt = GetTickCount64() + static_cast<unsigned long long>(m_delayMs);
     strncpy_s(m_status, "LeagueBar closed; next loop armed", _TRUNCATE);
     actiontrace::Push("automation", "LeagueBar closed");
@@ -850,6 +870,7 @@ bool AutomationFeature::ReadMultichestSnapshot(MultichestSnapshot* snapshot) con
         ReadObjectBool(m_multichestWindow, m_multichestButtonsActiveOffset, &snapshot->buttonsActive) &&
         ReadObjectPointer(m_multichestWindow, m_multichestButtonOffset, &openCardsButton);
     snapshot->openCardsButtonPresent = openCardsButton != nullptr;
+    snapshot->openCardsButton = openCardsButton;
     return ok;
 }
 
@@ -874,6 +895,7 @@ void AutomationFeature::OnMultichestShown(void* self) {
     m_multichestOpenDeadline = GetTickCount64() + 15000ULL;
     m_multichestCloseAt = 0;
     m_multichestRetryCount = 0;
+    m_multichestSeedClickInvoked = false;
     strncpy_s(m_status, "multichest shown; Open All scheduled", _TRUNCATE);
     actiontrace::Push("automation", "multichest shown; Open All scheduled");
 }
@@ -899,6 +921,23 @@ void AutomationFeature::OnMultichestTick() {
     if (!ReadMultichestSnapshot(&snapshot)) {
         m_multichestOpenAt = now + 250ULL;
         ++m_multichestRetryCount;
+        return;
+    }
+    // The pooled reward window needs one ordinary card click before it
+    // exposes Open All.  Dispatch that transition once per window.
+    if (!m_multichestSeedClickInvoked && snapshot.openCardsButtonPresent &&
+        snapshot.openCardsButton && snapshot.rewardCount > 0 &&
+        snapshot.actualCount > 0 && snapshot.cardsAppearAnimDone &&
+        !snapshot.openAllActive && s_originalMultichestButtonClick) {
+        __try {
+            s_originalMultichestButtonClick(snapshot.openCardsButton, nullptr);
+            m_multichestSeedClickInvoked = true;
+            m_multichestOpenAt = now + 350ULL;
+            strncpy_s(m_status, "multichest first reward opened; Open All scheduled", _TRUNCATE);
+            actiontrace::Push("automation", "multichest first reward click dispatched");
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            m_multichestOpenAt = now + 500ULL;
+        }
         return;
     }
     MultichestAction action = m_multichestRuntime.Decide(snapshot);
@@ -1161,3 +1200,5 @@ void AutomationFeature::OnButtonUpdate(void* self) {
 
 static AutomationFeature g_automation;
 static int g_automationRegistered = (RegisterFeature(&g_automation), 0);
+
+
