@@ -67,6 +67,7 @@ static ButtonFn s_originalRewardClaimAction = nullptr;
 static ButtonFn s_originalRewardClaimClose = nullptr;
 static ClaimRewardShowFn s_originalClaimRewardShow = nullptr;
 static ButtonFn s_originalClaimRewardClose = nullptr;
+static ButtonFn s_originalBankRewardShown = nullptr;
 static AutomationFeature* s_owner = nullptr;
 
 static void __fastcall ShowWindowHook(void* self, void* state, void* context,
@@ -198,6 +199,11 @@ static void __fastcall RewardClaimShowHook(void* self, void* actions, void* show
 static void __fastcall ClaimRewardShowHook(void* self, void* onAnimation, void* onHideAction, void* mi) {
     if (s_originalClaimRewardShow) s_originalClaimRewardShow(self, onAnimation, onHideAction, mi);
     if (s_owner) s_owner->OnClaimRewardShown(self);
+}
+
+static void __fastcall BankRewardShownHook(void* self, void* mi) {
+    if (s_originalBankRewardShown) s_originalBankRewardShown(self, mi);
+    if (s_owner) s_owner->OnBankRewardShown(self);
 }
 
 static void __fastcall AutoBattleStartHook(void* self, void* mi) {
@@ -451,6 +457,16 @@ void AutomationFeature::Init() {
         InstallObserver("automation.claim-reward.show", claimRewardShow,
             &ClaimRewardShowHook, &s_originalClaimRewardShow);
 
+    // The post-match "Rewards" dialog (BankRewardWindow) shows the won items
+    // and needs a single background tap to continue.  Hook OnShown and
+    // dismiss it via its _mainBackgroundButton so the flow proceeds to the
+    // multichest without a manual click.
+    void* bankRewardShown = ResolveMethodOrFallback("Assembly-CSharp",
+        "UI_Scripts.WindowManager", "BankRewardWindow", "OnShown", 0);
+    m_bankRewardShownHooked = bankRewardShown &&
+        InstallObserver("automation.bank-reward.shown", bankRewardShown,
+            &BankRewardShownHook, &s_originalBankRewardShown);
+
     const bool continueHooked = InstallObserver("automation.result.continue", continueShow,
         ResultActionFn(&ContinueShowHook), &s_originalContinue);
     m_advanceHooked = playNext != nullptr || hide != nullptr;
@@ -494,6 +510,8 @@ void AutomationFeature::Init() {
         "UI_Scripts.WindowManager", "MultichestWindow", "_openAllLock");
     m_multichestButtonsActiveOffset = ResolveFieldOffset("Assembly-CSharp",
         "UI_Scripts.WindowManager", "MultichestWindow", "_buttonsActive");
+    m_elementsListOffset = ResolveFieldOffset("Assembly-CSharp",
+        "UI_Scripts.WindowManager", "MultichestWindow", "elements");
     // IL2CPP exports are absent in the injected runtime, so metadata field
     // traversal returns -1. These offsets were verified live with REToolkit
     // Frida against the current GameAssembly build.
@@ -511,6 +529,7 @@ void AutomationFeature::Init() {
     if (m_multichestCardsAppearAnimDoneOffset < 0) m_multichestCardsAppearAnimDoneOffset = 0x16A;
     if (m_multichestOpenAllLockOffset < 0) m_multichestOpenAllLockOffset = 0x16B;
     if (m_multichestButtonsActiveOffset < 0) m_multichestButtonsActiveOffset = 0x188;
+    if (m_elementsListOffset < 0) m_elementsListOffset = 0x80; // MultichestWindow.elements
     LOG("[AUTOMATION] derank field fallback settings=0x%X surrender=0x%X confirm=0x%X",
         m_settingsOffset, m_surrenderOffset, m_leftButtonOffset);
     m_advanceHooked = m_advanceHooked || m_onButtonActionOffset >= 0;
@@ -620,8 +639,9 @@ void AutomationFeature::Init() {
         leagueShown, leagueClose, leagueUnlock, leagueScroll, leagueCounter,
         lh1 ? 1 : 0, lh2 ? 1 : 0, lh3 ? 1 : 0, lh4 ? 1 : 0,
         m_leagueReady ? 1 : 0);
-    LOG("[AUTOMATION] multichest methods show=%p enable=%p start=%p openAll=%p button=0x%X beforeHide=0x%X closeWindow=%p closeAction=%p hidden=%p hooked=%d/%d/%d/%d ready=%d",
+    LOG("[AUTOMATION] multichest methods show=%p enable=%p start=%p openAll=%p buttonListener=%p handleClick=%p button=0x%X beforeHide=0x%X closeWindow=%p closeAction=%p hidden=%p hooked=%d/%d/%d/%d ready=%d",
         multichestShow, multichestEnable, multichestStart, multichestOpenAll,
+        multichestButtonClick, handleClick,
         m_multichestButtonOffset, m_multichestBeforeHideActionOffset, multichestCloseWindow, multichestClose, multichestHidden, mh1 ? 1 : 0, mh2 ? 1 : 0,
         mh3 ? 1 : 0, mh4 ? 1 : 0, m_multichestReady ? 1 : 0);
     LOG("[AUTOMATION] bundle methods focus=%p close=%p hooked=%d ready=%d",
@@ -763,6 +783,29 @@ void AutomationFeature::OnUpdate() {
             window, "ClaimRewardWindow.Close");
         strncpy_s(m_status, "claim reward window closed", _TRUNCATE);
         actiontrace::Push("automation", "claim reward window closed");
+    }
+    // The post-match Rewards dialog (BankRewardWindow) needs a single tap on
+    // its background button (_mainBackgroundButton at 0x90) to continue.
+    if (m_coordinator.State() == AutomationState::CollectingReward && m_bankRewardWindow &&
+        s_originalHandleClick && GetTickCount64() >= m_bankRewardDismissAt) {
+        void* window = m_bankRewardWindow;
+        void* backgroundButton = nullptr;
+        ReadObjectPointer(window, 0x90, &backgroundButton);
+        m_bankRewardWindow = nullptr;
+        m_bankRewardDismissAt = 0;
+        if (backgroundButton) {
+            __try {
+                s_originalHandleClick(backgroundButton, nullptr);
+                strncpy_s(m_status, "rewards dialog dismissed", _TRUNCATE);
+                actiontrace::Push("automation", "rewards dialog dismissed");
+            } __except (EXCEPTION_EXECUTE_HANDLER) {
+                strncpy_s(m_status, "rewards dialog dismiss SEH; continuing", _TRUNCATE);
+                actiontrace::Push("err", "rewards dialog dismiss SEH");
+            }
+        } else {
+            strncpy_s(m_status, "rewards dialog shown; background button missing", _TRUNCATE);
+            actiontrace::Push("err", "rewards dialog background button missing");
+        }
     }
     if (m_coordinator.State() == AutomationState::CollectingReward) {
         const unsigned long long now = GetTickCount64();
@@ -925,6 +968,11 @@ void AutomationFeature::ResetRuntimeState() {
     m_multichestCloseAt = 0;
     m_multichestRetryCount = 0;
     m_multichestSeedClickInvoked = false;
+    m_multichestSeedCardIndex = 0;
+    m_multichestSeedCardClicked = false;
+    m_multichestOpenAllPending = false;
+    m_multichestOpenAllConfirmAt = 0;
+    m_multichestOpenAllBefore = {};
     m_bundleWindow = nullptr;
     m_bundleCloseAt = 0;
     m_autoBattleController = nullptr;
@@ -941,6 +989,8 @@ void AutomationFeature::ResetRuntimeState() {
     m_idleChestPreclaimAt = 0;
     m_rewardClaimPresenter = nullptr;
     m_claimRewardWindow = nullptr;
+    m_bankRewardWindow = nullptr;
+    m_bankRewardDismissAt = 0;
     m_rewardClaimActionInvoked = false;
     m_rewardClaimAt = 0;
     m_rewardClaimCloseAt = 0;
@@ -1058,6 +1108,10 @@ void AutomationFeature::OnMultichestShown(void* self) {
     m_multichestCloseAt = 0;
     m_multichestRetryCount = 0;
     m_multichestSeedClickInvoked = false;
+    m_multichestSeedCardIndex = 0;
+    m_multichestSeedCardClicked = false;
+    m_multichestOpenAllPending = false;
+    m_multichestOpenAllConfirmAt = 0;
     strncpy_s(m_status, "multichest shown; Open All scheduled", _TRUNCATE);
     actiontrace::Push("automation", "multichest shown; Open All scheduled");
 }
@@ -1069,6 +1123,10 @@ void AutomationFeature::OnMultichestHidden() {
     m_multichestOpenDeadline = 0;
     m_multichestCloseAt = 0;
     m_waitingMultichest = false;
+    m_multichestSeedCardIndex = 0;
+    m_multichestSeedCardClicked = false;
+    m_multichestOpenAllPending = false;
+    m_multichestOpenAllConfirmAt = 0;
     if (notifyReward && enabled && m_coordinator.State() == AutomationState::CollectingReward)
         m_coordinator.OnEvent(AutomationEvent::RewardCollected);
     if (enabled && m_coordinator.State() == AutomationState::Done) {
@@ -1092,20 +1150,115 @@ void AutomationFeature::OnMultichestTick() {
         return;
     }
     // The pooled reward window needs one ordinary card click before it
-    // exposes Open All.  Dispatch that transition once per window.
+    // exposes Open All.  Runtime evidence (19:58 trace): clicking the
+    // MultichestItemNew card elements first is what arms Button_OpenAll;
+    // clicking Button_OpenAll alone leaves openAllActive=0 and times out.
+    // The elements are the List<T> at window+0x80 (IL2CPP layout:
+    // list+0x10 = items array, list+0x18 = count, item[i] at
+    // array+0x20+i*8).  Each element is a MonoBehaviour; its cached
+    // gameObject sits at element+0x10 and the clickable UGUIButtonListener
+    // is one of the components on that GameObject (HandleClick on the raw
+    // element crashes with 0xC0000005 because it is not the listener).
+    // Walk the GameObject component list and click every component until
+    // the snapshot shows openAllActive or pressedOpenAll.
+    if (m_multichestSeedCardClicked) {
+        m_multichestSeedCardClicked = false;
+        m_multichestOpenAt = now + 250ULL;
+    }
     if (!m_multichestSeedClickInvoked && snapshot.openCardsButtonPresent &&
         snapshot.openCardsButton && snapshot.rewardCount > 0 &&
         snapshot.actualCount > 0 && snapshot.cardsAppearAnimDone &&
-        !snapshot.openAllActive && s_originalMultichestButtonClick) {
+        !snapshot.openAllActive && !snapshot.pressedOpenAll) {
+        void* elementsList = nullptr;
+        void* itemsArray = nullptr;
+        int32_t elementCount = 0;
+        bool haveList = m_elementsListOffset >= 0 &&
+            ReadObjectPointer(m_multichestWindow, m_elementsListOffset, &elementsList) &&
+            elementsList &&
+            ReadObjectPointer(elementsList, 0x10, &itemsArray) && itemsArray &&
+            ReadObjectInt32(elementsList, 0x18, &elementCount) && elementCount > 0;
+        if (!haveList) {
+            // Fall back to the old single-click seed on the open button.
+            __try {
+                s_originalMultichestButtonClick(snapshot.openCardsButton, nullptr);
+                m_multichestSeedClickInvoked = true;
+                m_multichestOpenAt = now + 350ULL;
+                strncpy_s(m_status, "multichest seed click (fallback)", _TRUNCATE);
+                actiontrace::Push("automation", "multichest first reward click dispatched");
+            } __except (EXCEPTION_EXECUTE_HANDLER) {
+                m_multichestOpenAt = now + 500ULL;
+            }
+            return;
+        }
+        if (m_multichestSeedCardIndex < elementCount) {
+            void* card = nullptr;
+            if (ReadObjectPointer(itemsArray, 0x20 + static_cast<int32_t>(m_multichestSeedCardIndex) * 8, &card) &&
+                card) {
+                void* gameObject = nullptr;
+                ReadObjectPointer(card, 0x10, &gameObject);
+                void* components = nullptr;
+                int32_t componentCount = 0;
+                const bool haveComponents = gameObject &&
+                    ReadObjectPointer(gameObject, 0x18, &components) && components &&
+                    ReadObjectInt32(components, 0x18, &componentCount) && componentCount > 0;
+                LOG("[AUTOMATION] multichest seed card[%d]=%p gameObject=%p components=%p count=%d of %d",
+                    m_multichestSeedCardIndex, card, gameObject, components, componentCount, elementCount);
+                bool anyClicked = false;
+                if (haveComponents && s_originalHandleClick) {
+                    const int32_t limit = componentCount < 16 ? componentCount : 16;
+                    for (int32_t ci = 0; ci < limit; ++ci) {
+                        void* component = nullptr;
+                        if (!ReadObjectPointer(components, 0x20 + ci * 8, &component) || !component) continue;
+                        // Only components carrying a bound onClick delegate are
+                        // the actual UGUIButtonListener (MultichestItemNew).
+                        // RewardVisualContainerUGUI / ScaleContainer appear
+                        // first in the array but their HandleClick is a no-op;
+                        // clicking them never opens a card (trace-verified).
+                        void* onClick = nullptr;
+                        ReadObjectPointer(component, 0x40, &onClick);
+                        if (!onClick) continue;
+                        __try {
+                            s_originalHandleClick(component, nullptr);
+                            anyClicked = true;
+                            LOG("[AUTOMATION] multichest seed card[%d] comp[%d]=%p onClick=%p clicked",
+                                m_multichestSeedCardIndex, ci, component, onClick);
+                        } __except (EXCEPTION_EXECUTE_HANDLER) {
+                            LOG("[AUTOMATION] multichest seed card[%d] comp[%d] SEH code=0x%08X",
+                                m_multichestSeedCardIndex, ci, GetExceptionCode());
+                        }
+                    }
+                }
+                if (anyClicked) {
+                    actiontrace::Push("automation", "multichest card click idx=%d", m_multichestSeedCardIndex);
+                } else if (s_originalHandleClick) {
+                    __try {
+                        s_originalHandleClick(card, nullptr);
+                        actiontrace::Push("automation", "multichest card click idx=%d (raw)", m_multichestSeedCardIndex);
+                    } __except (EXCEPTION_EXECUTE_HANDLER) {
+                        LOG("[AUTOMATION] multichest seed card raw SEH code=0x%08X", GetExceptionCode());
+                    }
+                }
+                ++m_multichestSeedCardIndex;
+                m_multichestSeedCardClicked = true;
+                m_multichestOpenAt = now + 300ULL;
+                return;
+            }
+            // Unreadable card slot — skip it.
+            ++m_multichestSeedCardIndex;
+            m_multichestOpenAt = now + 100ULL;
+            return;
+        }
+        // All cards clicked; nothing activated Open All — fall back to the
+        // open-button seed once so the window still has a chance.
         __try {
             s_originalMultichestButtonClick(snapshot.openCardsButton, nullptr);
             m_multichestSeedClickInvoked = true;
             m_multichestOpenAt = now + 350ULL;
-            strncpy_s(m_status, "multichest first reward opened; Open All scheduled", _TRUNCATE);
-            actiontrace::Push("automation", "multichest first reward click dispatched");
+            actiontrace::Push("automation", "multichest card seed exhausted; open click fallback");
         } __except (EXCEPTION_EXECUTE_HANDLER) {
             m_multichestOpenAt = now + 500ULL;
         }
+        m_multichestSeedClickInvoked = true;
         return;
     }
     MultichestAction action = m_multichestRuntime.Decide(snapshot);
@@ -1115,26 +1268,67 @@ void AutomationFeature::OnMultichestTick() {
         snapshot.pressedOpenAll ? 1 : 0, snapshot.cardsAppearAnimDone ? 1 : 0,
         snapshot.openAllLock ? 1 : 0, snapshot.openCardsButtonPresent ? 1 : 0,
         snapshot.buttonsActive ? 1 : 0, m_multichestRetryCount, now);
-    if (action == MultichestAction::InvokeOpenAll) {
-        const MultichestSnapshot before = snapshot;
-        CallResultActionSafe(reinterpret_cast<ResultActionFn>(s_originalMultichestOpenAll),
-            m_multichestWindow, "MultichestWindow.OnOpenAll");
+    if (m_multichestOpenAllPending) {
+        // The OpenAll click was dispatched; the UniTask body may not have
+        // transitioned the snapshot yet.  Wait out the confirmation window
+        // before reading again so OnOpenAllReturned sees the real result.
+        if (now < m_multichestOpenAllConfirmAt) return;
         MultichestSnapshot after{};
-        if (!ReadMultichestSnapshot(&after)) after = before;
-        m_multichestRuntime.OnOpenAllReturned(before, after);
+        if (!ReadMultichestSnapshot(&after)) after = m_multichestOpenAllBefore;
+        m_multichestOpenAllPending = false;
+        m_multichestRuntime.OnOpenAllReturned(m_multichestOpenAllBefore, after);
         ++m_multichestRetryCount;
         m_multichestOpenAt = now + 250ULL;
-        LOG("[AUTOMATION] multichest OpenAll method=%p before(current=%d active=%d pressed=%d) after(current=%d active=%d pressed=%d) confirmed=%d",
-            s_originalMultichestOpenAll, before.currentCount, before.openAllActive ? 1 : 0,
-            before.pressedOpenAll ? 1 : 0, after.currentCount, after.openAllActive ? 1 : 0,
-            after.pressedOpenAll ? 1 : 0, m_multichestRuntime.OpenAllInvoked() ? 1 : 0);
+        LOG("[AUTOMATION] multichest OpenAll confirm before(current=%d active=%d pressed=%d) after(current=%d active=%d pressed=%d) confirmed=%d",
+            m_multichestOpenAllBefore.currentCount, m_multichestOpenAllBefore.openAllActive ? 1 : 0,
+            m_multichestOpenAllBefore.pressedOpenAll ? 1 : 0, after.currentCount,
+            after.openAllActive ? 1 : 0, after.pressedOpenAll ? 1 : 0,
+            m_multichestRuntime.OpenAllInvoked() ? 1 : 0);
         strncpy_s(m_status, m_multichestRuntime.OpenAllInvoked()
             ? "multichest Open All confirmed; settling" : "multichest Open All unconfirmed; retrying", _TRUNCATE);
-        actiontrace::Push("automation", "OpenAll invoked retry=%d confirmed=%d",
+        actiontrace::Push("automation", "OpenAll confirmed retry=%d confirmed=%d",
             m_multichestRetryCount, m_multichestRuntime.OpenAllInvoked() ? 1 : 0);
         return;
     }
-    if (m_rewardsClaimObserved && m_multichestRuntime.OpenAllInvoked())
+    if (action == MultichestAction::InvokeOpenAll) {
+        // Dispatch Open All through the button's own onClick delegate.  The
+        // injected runtime cannot resolve MethodInfo (il2cpp_method_get_pointer
+        // export missing), and OnOpenAll is an async UniTask body that
+        // dereferences it: a direct OnOpenAll(window, nullptr) call crashed
+        // with SEH 0xC0000005.  UGUIButtonListener.HandleClick invokes the
+        // bound onClick Action which carries the real MethodInfo.  If the
+        // seed click already fired OnOpenAll (pressedOpenAll set), skip the
+        // redundant second click and confirm from the current snapshot.
+        if (snapshot.pressedOpenAll) {
+            m_multichestOpenAllPending = true;
+            m_multichestOpenAllConfirmAt = now + 250ULL;
+            m_multichestOpenAllBefore = snapshot;
+            strncpy_s(m_status, "Open All already pressed; confirming", _TRUNCATE);
+            return;
+        }
+        if (snapshot.openCardsButtonPresent && snapshot.openCardsButton && s_originalHandleClick) {
+            m_multichestOpenAllBefore = snapshot;
+            m_multichestOpenAllPending = true;
+            m_multichestOpenAllConfirmAt = now + 350ULL;
+            __try {
+                s_originalHandleClick(snapshot.openCardsButton, nullptr);
+                strncpy_s(m_status, "multichest Open All dispatched; confirming", _TRUNCATE);
+                actiontrace::Push("automation", "OpenAll click dispatched");
+            } __except (EXCEPTION_EXECUTE_HANDLER) {
+                m_multichestOpenAllPending = false;
+                m_multichestOpenAt = now + 500ULL;
+                LOG("[AUTOMATION] multichest OpenAll click SEH code=0x%08X", GetExceptionCode());
+            }
+        } else {
+            LOG("[AUTOMATION] multichest OpenAll unavailable button=%d handleClick=%p",
+                snapshot.openCardsButtonPresent ? 1 : 0, s_originalHandleClick);
+            m_multichestOpenAt = now + 500ULL;
+        }
+        ++m_multichestRetryCount;
+        return;
+    }
+    if (ShouldForceCloseMultichest(m_rewardsClaimObserved,
+            m_multichestRuntime.OpenAllInvoked(), snapshot.openAllLock))
         action = MultichestAction::RequestClose;
     if (action != MultichestAction::RequestClose) {
         if (now >= m_multichestOpenDeadline) {
@@ -1289,8 +1483,13 @@ void AutomationFeature::OnRewardsClaimed() {
 }
 
 void AutomationFeature::OnIdleChestShown(void* self) {
-    if (!enabled || m_mode != 1 || !self ||
-        m_coordinator.State() != AutomationState::CollectingReward) return;
+    if (!enabled || m_mode != 1 || !self) return;
+    // The result-advance _onButtonAction delegate re-entrantly shows the
+    // reward sections while the coordinator is still AwaitingResult; the
+    // transition to CollectingReward happens only after the delegate returns.
+    const AutomationState state = m_coordinator.State();
+    if (state != AutomationState::AwaitingResult &&
+        state != AutomationState::CollectingReward) return;
     m_idleChestPresenter = self;
     m_idleChestPreclaimInvoked = false;
     m_idleChestPreclaimAt = GetTickCount64() + 250ULL;
@@ -1299,8 +1498,10 @@ void AutomationFeature::OnIdleChestShown(void* self) {
 }
 
 void AutomationFeature::OnIdleChestPreclaim(void* self) {
-    if (!enabled || m_mode != 1 || !self ||
-        m_coordinator.State() != AutomationState::CollectingReward) return;
+    if (!enabled || m_mode != 1 || !self) return;
+    const AutomationState state = m_coordinator.State();
+    if (state != AutomationState::AwaitingResult &&
+        state != AutomationState::CollectingReward) return;
     m_idleChestPresenter = self;
     m_idleChestPreclaimInvoked = true;
     m_rewardsClaimObserved = true;
@@ -1311,8 +1512,10 @@ void AutomationFeature::OnIdleChestPreclaim(void* self) {
 }
 
 void AutomationFeature::OnRewardClaimShown(void* self) {
-    if (!enabled || m_mode != 1 || !self ||
-        m_coordinator.State() != AutomationState::CollectingReward) return;
+    if (!enabled || m_mode != 1 || !self) return;
+    const AutomationState state = m_coordinator.State();
+    if (state != AutomationState::AwaitingResult &&
+        state != AutomationState::CollectingReward) return;
     m_rewardClaimPresenter = self;
     m_rewardClaimActionInvoked = false;
     m_rewardClaimAt = GetTickCount64() + 250ULL;
@@ -1324,14 +1527,29 @@ void AutomationFeature::OnRewardClaimShown(void* self) {
 }
 
 void AutomationFeature::OnClaimRewardShown(void* self) {
-    if (!enabled || m_mode != 1 || !self ||
-        m_coordinator.State() != AutomationState::CollectingReward) return;
+    if (!enabled || m_mode != 1 || !self) return;
+    const AutomationState state = m_coordinator.State();
+    if (state != AutomationState::AwaitingResult &&
+        state != AutomationState::CollectingReward) return;
     m_claimRewardWindow = self;
     m_claimRewardCloseAt = GetTickCount64() + 250ULL;
     m_rewardsClaimObserved = true;
     m_rewardsClaimAt = GetTickCount64();
     strncpy_s(m_status, "claim reward window shown; close scheduled", _TRUNCATE);
     actiontrace::Push("automation", "claim reward window shown");
+}
+
+void AutomationFeature::OnBankRewardShown(void* self) {
+    if (!enabled || m_mode != 1 || !self || !m_bankRewardShownHooked) return;
+    const AutomationState state = m_coordinator.State();
+    if (state != AutomationState::AwaitingResult &&
+        state != AutomationState::CollectingReward) return;
+    m_bankRewardWindow = self;
+    m_bankRewardDismissAt = GetTickCount64() + 250ULL;
+    m_rewardsClaimObserved = true;
+    m_rewardsClaimAt = GetTickCount64();
+    strncpy_s(m_status, "rewards dialog shown; dismiss scheduled", _TRUNCATE);
+    actiontrace::Push("automation", "rewards dialog shown; dismiss scheduled");
 }
 
 void AutomationFeature::OnBattlefieldStart(void* self) {

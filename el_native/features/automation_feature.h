@@ -31,6 +31,7 @@ struct AutomationFeature : Feature {
     void OnIdleChestPreclaim(void* self);
     void OnRewardClaimShown(void* self);
     void OnClaimRewardShown(void* self);
+    void OnBankRewardShown(void* self);
     void ResetRuntimeState();
 
 private:
@@ -60,6 +61,9 @@ private:
     bool m_lapisGateReady = false;
     bool m_rewardsClaimObserved = false;
     bool m_idleChestPreclaimInvoked = false;
+    bool m_bankRewardShownHooked = false;
+    unsigned long long m_bankRewardDismissAt = 0;
+    void* m_bankRewardWindow = nullptr;
     unsigned long long m_idleChestPreclaimAt = 0;
     unsigned long long m_rewardSettlementDeadline = 0;
     unsigned long long m_rewardsClaimAt = 0;
@@ -109,6 +113,12 @@ private:
     MultichestRuntimeState m_multichestRuntime;
     int m_multichestRetryCount = 0;
     bool m_multichestSeedClickInvoked = false;
+    int m_multichestSeedCardIndex = 0;
+    bool m_multichestSeedCardClicked = false;
+    int32_t m_elementsListOffset = -1;
+    bool m_multichestOpenAllPending = false;
+    unsigned long long m_multichestOpenAllConfirmAt = 0;
+    MultichestSnapshot m_multichestOpenAllBefore;
     int m_autoBattleRetryCount = 0;
     int m_playWatchdogRetries = 0;
     unsigned long long m_derankPhaseDeadlineAt = 0;

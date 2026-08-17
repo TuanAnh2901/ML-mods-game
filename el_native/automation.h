@@ -37,6 +37,13 @@ RewardSettlementDecision DecideRewardSettlement(
     bool multichestVisible, bool bundleVisible, bool leagueVisible,
     bool claimGraceElapsed, bool deadlineElapsed);
 
+// The CollectingReward state force-closes the multichest once the claim has
+// been observed and OpenAll was invoked. Closing while the card animation
+// still holds _openAllLock crashed the game (SEH 0xC0000005), so the forced
+// close must wait for the lock to clear.
+bool ShouldForceCloseMultichest(
+    bool rewardsClaimObserved, bool openAllInvoked, bool openAllLock);
+
 enum class PlayInvokeDecision { WaitForHook, InvokeViaWatchdog };
 
 PlayInvokeDecision DecidePlayInvoke(

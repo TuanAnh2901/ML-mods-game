@@ -68,10 +68,18 @@ MultichestAction MultichestRuntimeState::Decide(const MultichestSnapshot& snapsh
         const bool countSettled = snapshot.actualCount > 0 &&
             snapshot.currentCount >= snapshot.actualCount;
         const bool openAllSettled = snapshot.pressedOpenAll && !snapshot.openAllActive;
-        return countSettled || openAllSettled
+        // Closing while the card animation still holds _openAllLock crashed the
+        // game (SEH 0xC0000005). Wait for the lock to clear before requesting
+        // the close, even when the reward counts already settled.
+        return (countSettled || openAllSettled) && !snapshot.openAllLock
             ? MultichestAction::RequestClose : MultichestAction::Wait;
     }
     return MultichestAction::Wait;
+}
+
+bool ShouldForceCloseMultichest(
+    bool rewardsClaimObserved, bool openAllInvoked, bool openAllLock) {
+    return rewardsClaimObserved && openAllInvoked && !openAllLock;
 }
 
 void MultichestRuntimeState::OnOpenAllReturned(

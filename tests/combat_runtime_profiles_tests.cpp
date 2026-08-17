@@ -426,6 +426,45 @@ static void TestMultichestAutomationStateMachine() {
     std::puts("MULTICHEST_HIDDEN_EVENT=ONCE");
 }
 
+static void TestMultichestCloseLockGating() {
+    MultichestRuntimeState runtime;
+    runtime.OnShown(reinterpret_cast<void*>(0x3000));
+
+    MultichestSnapshot snapshot{};
+    snapshot.rewardCount = 6;
+    snapshot.actualCount = 6;
+    snapshot.currentCount = 6; // already settled
+    snapshot.cardsAppearAnimDone = true;
+    snapshot.openCardsButtonPresent = true;
+    snapshot.openAllActive = true;
+    snapshot.pressedOpenAll = true;
+    snapshot.openAllLock = false;
+
+    MultichestSnapshot beforeOpenAll = snapshot;
+    beforeOpenAll.currentCount = 0;
+    beforeOpenAll.pressedOpenAll = false;
+    runtime.OnOpenAllReturned(beforeOpenAll, snapshot);
+    assert(runtime.Phase() == MultichestPhase::WaitingForRewardSettlement);
+    assert(runtime.OpenAllInvoked());
+
+    // Counts settled but animation lock still held -> must NOT close.
+    snapshot.openAllLock = true;
+    assert(runtime.Decide(snapshot) == MultichestAction::Wait);
+    // Lock cleared -> close is safe.
+    snapshot.openAllLock = false;
+    assert(runtime.Decide(snapshot) == MultichestAction::RequestClose);
+    std::puts("MULTICHEST_CLOSE_LOCK=GATED");
+}
+
+static void TestMultichestForcedCloseDecision() {
+    assert(ShouldForceCloseMultichest(true, true, false));
+    assert(!ShouldForceCloseMultichest(true, true, true));
+    assert(!ShouldForceCloseMultichest(true, false, false));
+    assert(!ShouldForceCloseMultichest(false, true, false));
+    assert(!ShouldForceCloseMultichest(false, false, false));
+    std::puts("MULTICHEST_FORCED_CLOSE=LOCK_AWARE");
+}
+
 static void TestAutomationEventOrdering() {
     assert(CanArmAutoBattleAtBattlefieldStart(AutomationState::StartingBattle));
     assert(CanArmAutoBattleAtBattlefieldStart(AutomationState::InBattle));
@@ -557,6 +596,8 @@ int main() {
     TestRewardSettlementDecision();
     TestPlayInvokeWatchdogDecision();
     TestMultichestAutomationStateMachine();
+    TestMultichestCloseLockGating();
+    TestMultichestForcedCloseDecision();
     TestAutomationEventOrdering();
     TestMainThreadDispatcher();
     TestProfileCrudAndRecovery();
