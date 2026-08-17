@@ -1177,17 +1177,14 @@ void AutomationFeature::OnMultichestTick() {
             elementsList &&
             ReadObjectPointer(elementsList, 0x10, &itemsArray) && itemsArray &&
             ReadObjectInt32(elementsList, 0x18, &elementCount) && elementCount > 0;
-        if (!haveList) {
-            // Fall back to the old single-click seed on the open button.
-            __try {
-                s_originalMultichestButtonClick(snapshot.openCardsButton, nullptr);
-                m_multichestSeedClickInvoked = true;
-                m_multichestOpenAt = now + 350ULL;
-                strncpy_s(m_status, "multichest seed click (fallback)", _TRUNCATE);
-                actiontrace::Push("automation", "multichest first reward click dispatched");
-            } __except (EXCEPTION_EXECUTE_HANDLER) {
-                m_multichestOpenAt = now + 500ULL;
-            }
+        if (!haveList || elementCount > 64) {
+            // The pooled window may not have populated its elements list yet
+            // when the flow skips the Winstreak reward dialog (13:06 trace:
+            // element count read 822M).  Wait for a sane count instead of
+            // clicking a half-initialised window.
+            if (elementCount > 64)
+                LOG("[AUTOMATION] multichest seed wait: elements count=%d", elementCount);
+            m_multichestOpenAt = now + 250ULL;
             return;
         }
         if (m_multichestSeedCardIndex < elementCount) {
@@ -1205,7 +1202,11 @@ void AutomationFeature::OnMultichestTick() {
                     m_multichestSeedCardIndex, card, gameObject, components, componentCount, elementCount);
                 bool anyClicked = false;
                 if (haveComponents && s_originalHandleClick) {
-                    const int32_t limit = componentCount < 16 ? componentCount : 16;
+                    // The pooled window may not have bound its components yet
+                    // when there is no Winstreak reward delay (13:06 trace:
+                    // component count read 822M).  Only walk a sane range.
+                    const int32_t limit = (componentCount > 0 && componentCount <= 32)
+                        ? componentCount : 0;
                     for (int32_t ci = 0; ci < limit; ++ci) {
                         void* component = nullptr;
                         if (!ReadObjectPointer(components, 0x20 + ci * 8, &component) || !component) continue;
@@ -1305,6 +1306,26 @@ void AutomationFeature::OnMultichestTick() {
             m_multichestOpenAllBefore = snapshot;
             strncpy_s(m_status, "Open All already pressed; confirming", _TRUNCATE);
             return;
+        }
+        // OnOpenAll loops over the elements list; dispatching it before the
+        // pooled window has populated that list (no-Winstreak flow, 13:06
+        // trace: count read 822M) crashes inside the loop after setting
+        // pressed+lock.  Wait for a sane element count first.
+        {
+            void* elementsList = nullptr;
+            void* itemsArray = nullptr;
+            int32_t elementCount = 0;
+            const bool saneElements = m_elementsListOffset >= 0 &&
+                ReadObjectPointer(m_multichestWindow, m_elementsListOffset, &elementsList) &&
+                elementsList &&
+                ReadObjectPointer(elementsList, 0x10, &itemsArray) && itemsArray &&
+                ReadObjectInt32(elementsList, 0x18, &elementCount) &&
+                elementCount > 0 && elementCount <= 64;
+            if (!saneElements) {
+                LOG("[AUTOMATION] multichest OpenAll wait: elements count=%d", elementCount);
+                m_multichestOpenAt = now + 250ULL;
+                return;
+            }
         }
         if (snapshot.openCardsButtonPresent && snapshot.openCardsButton && s_originalHandleClick) {
             m_multichestOpenAllBefore = snapshot;
