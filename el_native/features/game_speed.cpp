@@ -104,14 +104,18 @@ void GameSpeedFeature::Init() {
 }
 
 void GameSpeedFeature::OnUpdate() {
-    s_battleSpeed = enabled ? m_multiplier : 1.0f;
+    if (!enabled || m_multiplier <= 1.0f) {
+        s_battleSpeed = 1.0f;
+        return;
+    }
+    s_battleSpeed = m_multiplier;
 
-    // Apply Time.timeScale every frame (game may reset it)
     if (Resolved_SetTimeScale && Resolved_GetTimeScale) {
-        float want = enabled ? m_multiplier : 1.0f;
-        if (Resolved_GetTimeScale() != want) {
-            Resolved_SetTimeScale(want);
-        }
+        __try {
+            if (Resolved_GetTimeScale() != m_multiplier) {
+                Resolved_SetTimeScale(m_multiplier);
+            }
+        } __except (EXCEPTION_EXECUTE_HANDLER) {}
     }
 }
 

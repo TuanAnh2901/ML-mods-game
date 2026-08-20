@@ -23,193 +23,200 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo === Building el_native.dll ===
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_hook.obj el_native\hook.cpp /I minhook\include /I minhook\src /I minhook\src\hde
+set CL_FLAGS=/nologo /O2 /EHsc /d2SSAOptimizer-
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_hook.obj el_native\hook.cpp /I minhook\include /I minhook\src /I minhook\src\hde
 if %ERRORLEVEL% neq 0 (
     echo hook.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_resolve.obj el_native\il2cpp_resolve.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_resolve.obj el_native\il2cpp_resolve.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo il2cpp_resolve.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_render.obj el_native\render.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_render.obj el_native\render.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo render.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_feature.obj el_native\feature.cpp /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_feature.obj el_native\feature.cpp /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo feature.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_resource_dump.obj el_native\features\resource_dump.cpp /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_resource_dump_core.obj el_native\features\resource_dump_core.cpp
+if %ERRORLEVEL% neq 0 (
+    echo resource_dump_core.cpp COMPILE FAILED
+    exit /b 1
+)
+
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_resource_dump.obj el_native\features\resource_dump.cpp /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo resource_dump.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_game_speed.obj el_native\features\game_speed.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_game_speed.obj el_native\features\game_speed.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo game_speed.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_currency.obj el_native\features\currency.cpp /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_currency.obj el_native\features\currency.cpp /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo currency.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_damage.obj el_native\features\damage.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_damage.obj el_native\features\damage.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo damage.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_netlog.obj el_native\features\netlog.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_netlog.obj el_native\features\netlog.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo netlog.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_gacha.obj el_native\features\gacha.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_gacha.obj el_native\features\gacha.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo gacha.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_monster_dump.obj el_native\features\monster_dump.cpp /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_monster_dump.obj el_native\features\monster_dump.cpp /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo monster_dump.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_battle_shop.obj el_native\features\battle_shop.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_battle_shop.obj el_native\features\battle_shop.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo battle_shop.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_energy_attack_speed.obj el_native\features\energy_attack_speed.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_energy_attack_speed.obj el_native\features\energy_attack_speed.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo energy_attack_speed.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_battle_result.obj el_native\features\battle_result.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_battle_result.obj el_native\features\battle_result.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo battle_result.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_anticheat.obj el_native\features\anticheat.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_anticheat.obj el_native\features\anticheat.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo anticheat.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_tracer.obj el_native\features\tracer.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_tracer.obj el_native\features\tracer.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo tracer.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_battle_combat.obj el_native\features\battle_combat.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_battle_combat.obj el_native\features\battle_combat.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo battle_combat.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_compatibility_patch.obj el_native\compatibility_patch.cpp /I minhook\include /I minhook\src /I minhook\src\hde
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_compatibility_patch.obj el_native\compatibility_patch.cpp /I minhook\include /I minhook\src /I minhook\src\hde
 if %ERRORLEVEL% neq 0 (
     echo compatibility_patch.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_multichest_delegate_guard.obj el_native\multichest_delegate_guard.cpp
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_multichest_delegate_guard.obj el_native\multichest_delegate_guard.cpp
 if %ERRORLEVEL% neq 0 (
     echo multichest_delegate_guard.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_automation.obj el_native\automation.cpp
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_automation.obj el_native\automation.cpp
 if %ERRORLEVEL% neq 0 (
     echo automation.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_automation_feature.obj el_native\features\automation_feature.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_automation_feature.obj el_native\features\automation_feature.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo automation_feature.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_main_thread_dispatcher.obj el_native\main_thread_dispatcher.cpp
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_main_thread_dispatcher.obj el_native\main_thread_dispatcher.cpp
 if %ERRORLEVEL% neq 0 (
     echo main_thread_dispatcher.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_dev_menu.obj el_native\features\dev_menu.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_dev_menu.obj el_native\features\dev_menu.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo dev_menu.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_combat_runtime.obj el_native\combat_runtime.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_combat_runtime.obj el_native\combat_runtime.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo combat_runtime.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_combat_runtime_adapter.obj el_native\combat_runtime_adapter.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_combat_runtime_adapter.obj el_native\combat_runtime_adapter.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo combat_runtime_adapter.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_hook_registry.obj el_native\hook_registry.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_hook_registry.obj el_native\hook_registry.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo hook_registry.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_profile_store.obj el_native\profile_store.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_profile_store.obj el_native\profile_store.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo profile_store.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_config_registry.obj el_native\config_registry.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_config_registry.obj el_native\config_registry.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo config_registry.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_profile_ui.obj el_native\profile_ui.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_profile_ui.obj el_native\profile_ui.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo profile_ui.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_launcher.obj injector\launcher.cpp
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_launcher.obj injector\launcher.cpp
 if %ERRORLEVEL% neq 0 (
     echo launcher.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_combat_runtime_feature.obj el_native\features\combat_runtime_feature.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_combat_runtime_feature.obj el_native\features\combat_runtime_feature.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo combat_runtime_feature.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_relationship.obj el_native\features\relationship.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_relationship.obj el_native\features\relationship.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo relationship.cpp COMPILE FAILED
     exit /b 1
@@ -220,40 +227,46 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_proxy_log_overlay.obj el_native\features\proxy_log_overlay.cpp /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_proxy_log_overlay.obj el_native\features\proxy_log_overlay.cpp /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo proxy_log_overlay.cpp COMPILE FAILED
     exit /b 1
 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\el_action_tracer.obj el_native\features\action_tracer.cpp /I minhook\include /I third_party\imgui
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_action_tracer.obj el_native\features\action_tracer.cpp /I minhook\include /I third_party\imgui
 if %ERRORLEVEL% neq 0 (
     echo action_tracer.cpp COMPILE FAILED
     exit /b 1
 )
 
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\el_dev_mode.obj el_native\features\dev_mode.cpp /I minhook\include /I third_party\imgui
+if %ERRORLEVEL% neq 0 (
+    echo dev_mode.cpp COMPILE FAILED
+    exit /b 1
+)
+
 echo === Building ImGui ===
 set IMGUI=third_party\imgui
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\imgui.obj %IMGUI%\imgui.cpp /I %IMGUI%
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\imgui.obj %IMGUI%\imgui.cpp /I %IMGUI%
 if %ERRORLEVEL% neq 0 ( echo imgui.cpp FAILED & exit /b 1 )
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\imgui_draw.obj %IMGUI%\imgui_draw.cpp /I %IMGUI%
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\imgui_draw.obj %IMGUI%\imgui_draw.cpp /I %IMGUI%
 if %ERRORLEVEL% neq 0 ( echo imgui_draw.cpp FAILED & exit /b 1 )
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\imgui_tables.obj %IMGUI%\imgui_tables.cpp /I %IMGUI%
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\imgui_tables.obj %IMGUI%\imgui_tables.cpp /I %IMGUI%
 if %ERRORLEVEL% neq 0 ( echo imgui_tables.cpp FAILED & exit /b 1 )
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\imgui_widgets.obj %IMGUI%\imgui_widgets.cpp /I %IMGUI%
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\imgui_widgets.obj %IMGUI%\imgui_widgets.cpp /I %IMGUI%
 if %ERRORLEVEL% neq 0 ( echo imgui_widgets.cpp FAILED & exit /b 1 )
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\imgui_impl_dx11.obj %IMGUI%\imgui_impl_dx11.cpp /I %IMGUI%
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\imgui_impl_dx11.obj %IMGUI%\imgui_impl_dx11.cpp /I %IMGUI%
 if %ERRORLEVEL% neq 0 ( echo imgui_impl_dx11.cpp FAILED & exit /b 1 )
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /c /Fo%BLD%\imgui_impl_win32.obj %IMGUI%\imgui_impl_win32.cpp /I %IMGUI%
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /c /Fo%BLD%\imgui_impl_win32.obj %IMGUI%\imgui_impl_win32.cpp /I %IMGUI%
 if %ERRORLEVEL% neq 0 ( echo imgui_impl_win32.cpp FAILED & exit /b 1 )
 
-"%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /O2 /EHsc /Fe:%BLD%\el_native.dll el_native\dllmain.cpp ^
+"%VCDIR%\bin\Hostx64\x64\cl.exe" %CL_FLAGS% /Fe:%BLD%\el_native.dll el_native\dllmain.cpp ^
     minhook\src\buffer.c minhook\src\hook.c minhook\src\trampoline.c minhook\src\hde\hde64.c ^
-    %BLD%\el_hook.obj %BLD%\el_compatibility_patch.obj %BLD%\el_multichest_delegate_guard.obj %BLD%\el_automation.obj %BLD%\el_automation_feature.obj %BLD%\el_main_thread_dispatcher.obj %BLD%\el_dev_menu.obj %BLD%\el_render.obj %BLD%\el_resolve.obj %BLD%\el_feature.obj %BLD%\el_game_speed.obj %BLD%\el_currency.obj %BLD%\el_resource_dump.obj ^
-    %BLD%\el_damage.obj %BLD%\el_netlog.obj %BLD%\el_gacha.obj %BLD%\el_monster_dump.obj %BLD%\el_battle_shop.obj %BLD%\el_energy_attack_speed.obj %BLD%\el_battle_result.obj %BLD%\el_anticheat.obj %BLD%\el_tracer.obj %BLD%\el_battle_combat.obj %BLD%\el_combat_runtime.obj %BLD%\el_combat_runtime_adapter.obj %BLD%\el_hook_registry.obj %BLD%\el_profile_store.obj %BLD%\el_config_registry.obj %BLD%\el_profile_ui.obj %BLD%\el_launcher.obj %BLD%\el_combat_runtime_feature.obj %BLD%\el_relationship.obj %BLD%\el_proxy_log_overlay.obj %BLD%\el_action_tracer.obj ^
+    %BLD%\el_hook.obj %BLD%\el_compatibility_patch.obj %BLD%\el_multichest_delegate_guard.obj %BLD%\el_automation.obj %BLD%\el_automation_feature.obj %BLD%\el_main_thread_dispatcher.obj %BLD%\el_dev_menu.obj %BLD%\el_render.obj %BLD%\el_resolve.obj %BLD%\el_feature.obj %BLD%\el_resource_dump_core.obj %BLD%\el_game_speed.obj %BLD%\el_currency.obj %BLD%\el_resource_dump.obj ^
+    %BLD%\el_damage.obj %BLD%\el_netlog.obj %BLD%\el_gacha.obj %BLD%\el_monster_dump.obj %BLD%\el_battle_shop.obj %BLD%\el_energy_attack_speed.obj %BLD%\el_battle_result.obj %BLD%\el_anticheat.obj %BLD%\el_tracer.obj %BLD%\el_battle_combat.obj %BLD%\el_combat_runtime.obj %BLD%\el_combat_runtime_adapter.obj %BLD%\el_hook_registry.obj %BLD%\el_profile_store.obj %BLD%\el_config_registry.obj %BLD%\el_profile_ui.obj %BLD%\el_launcher.obj %BLD%\el_combat_runtime_feature.obj %BLD%\el_relationship.obj %BLD%\el_proxy_log_overlay.obj %BLD%\el_action_tracer.obj %BLD%\el_dev_mode.obj ^
     %BLD%\imgui.obj %BLD%\imgui_draw.obj %BLD%\imgui_tables.obj %BLD%\imgui_widgets.obj ^
     %BLD%\imgui_impl_dx11.obj %BLD%\imgui_impl_win32.obj ^
-    /I minhook\include /I minhook\src /I minhook\src\hde /I %IMGUI% /link /DLL /SUBSYSTEM:WINDOWS d3d11.lib dxgi.lib
+    /I minhook\include /I minhook\src /I minhook\src\hde /I %IMGUI% /link /DLL /DEBUG /MAP:%BLD%\el_native.map /SUBSYSTEM:WINDOWS d3d11.lib dxgi.lib user32.lib
 if %ERRORLEVEL% neq 0 (
     echo DLL LINK FAILED
     exit /b 1
@@ -311,7 +324,7 @@ if exist "%EL_GAME_DIR%" (
 echo === Building runtime/profile tests ===
 "%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /EHsc /std:c++14 tests\combat_runtime_profiles_tests.cpp ^
     el_native\combat_runtime.cpp el_native\combat_runtime_adapter.cpp el_native\automation.cpp el_native\main_thread_dispatcher.cpp el_native\multichest_delegate_guard.cpp el_native\hook_registry.cpp el_native\profile_store.cpp el_native\config_registry.cpp injector\launcher.cpp ^
-    /I el_native /I injector /I third_party\imgui /Fe:%BLD%\combat_runtime_profiles_tests.exe
+    /I el_native /I injector /I third_party\imgui /Fe:%BLD%\combat_runtime_profiles_tests.exe /link user32.lib
 if %ERRORLEVEL% neq 0 (
     echo runtime/profile tests BUILD FAILED
     exit /b 1
@@ -320,7 +333,7 @@ echo   %BLD%\combat_runtime_profiles_tests.exe
 
 echo === Building proxy log parser tests ===
 "%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /EHsc /std:c++14 tests\proxy_log_parse_tests.cpp ^
-    /I el_native /Fe:%BLD%\proxy_log_parse_tests.exe
+    /I el_native /Fe:%BLD%\proxy_log_parse_tests.exe /link user32.lib
 if %ERRORLEVEL% neq 0 (
     echo proxy log parser tests BUILD FAILED
     exit /b 1
@@ -329,7 +342,7 @@ echo   %BLD%\proxy_log_parse_tests.exe
 
 echo === Building action trace tests ===
 "%VCDIR%\bin\Hostx64\x64\cl.exe" /nologo /EHsc /std:c++14 tests\action_trace_tests.cpp ^
-    /I el_native /Fe:%BLD%\action_trace_tests.exe
+    /I el_native /Fe:%BLD%\action_trace_tests.exe /link user32.lib
 if %ERRORLEVEL% neq 0 (
     echo action trace tests BUILD FAILED
     exit /b 1

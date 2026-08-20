@@ -97,19 +97,6 @@ DESIRED: list[tuple[Any, ...]] = [
                                 "SetResource",        "Assembly-CSharp",      None,       2),
     ("AutoChess.DataClasses.UserData.UserDataBits.ResourceBit",
                                 "GetResource",        "Assembly-CSharp",      None,       1),
-    # UserResourcesUtil
-    ("UserResourcesUtil",       "GetStringByResourceType",
-                                                      "Assembly-CSharp",      None,       1),
-    ("UserResourcesUtil",       "GetResourceTypeByString",
-                                                      "Assembly-CSharp",      None,       1),
-    ("UserResourcesUtil",       "GetAllResourceTypes",
-                                                      "Assembly-CSharp",      None,       0),
-    ("UserResourcesUtil",       "GetResourceName",    "Assembly-CSharp",      None,       1),
-    # UnityEngine.Time
-    ("UnityEngine.Time",        "set_timeScale",      "UnityEngine.CoreModule",
-                                                                             None,       1),
-    ("UnityEngine.Time",        "get_timeScale",      "UnityEngine.CoreModule",
-                                                                             None,       0),
     # Constants
     ("NewAssets.Scripts.DataClasses.UserData.Constants",
                                 "get_fightCustomTimescale",
@@ -397,6 +384,18 @@ MANUAL_ALIAS_ROWS: list[dict[str, Any]] = [
      "cls": "CheatsWindow", "method": "get_instance", "argc": 0, "rva": 0x2BE3F80},
     {"assembly": "Assembly-CSharp", "ns": "AutoChess.Prefabs.CheatsWindow.Scripts",
      "cls": "CheatsWindow", "method": "Show", "argc": 2, "rva": 0x2BE3860},
+    {"assembly": "UnityEngine.CoreModule", "ns": "UnityEngine",
+     "cls": "Time", "method": "get_timeScale", "argc": 0, "rva": 0x43D8C10},
+    {"assembly": "UnityEngine.CoreModule", "ns": "UnityEngine",
+     "cls": "Time", "method": "set_timeScale", "argc": 1, "rva": 0x43D8D40},
+    {"assembly": "Assembly-CSharp", "ns": "",
+     "cls": "UserResourcesUtil", "method": "GetAllResourceTypes", "argc": 0, "rva": 0xBCC980},
+    {"assembly": "Assembly-CSharp", "ns": "",
+     "cls": "UserResourcesUtil", "method": "GetResourceName", "argc": 1, "rva": 0xBCCF80},
+    {"assembly": "Assembly-CSharp", "ns": "",
+     "cls": "UserResourcesUtil", "method": "GetResourceTypeByString", "argc": 1, "rva": 0xBCCEB0},
+    {"assembly": "Assembly-CSharp", "ns": "",
+     "cls": "UserResourcesUtil", "method": "GetStringByResourceType", "argc": 1, "rva": 0xBCD070},
 ]
 
 

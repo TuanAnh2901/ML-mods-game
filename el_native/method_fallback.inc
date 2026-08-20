@@ -78,10 +78,10 @@ static MethodFallbackEntry g_methodFallbackTable[173] = {
     {"Assembly-CSharp", "AutoChess.MiniEvents.MiniEventModules.ChooseRewardEvent", "ChooseRewardRouletteEventModule", "ChooseReward", 2, 0xBA34D0},
     {"Assembly-CSharp", "AutoChess.MiniEvents.MiniEventModules.ChooseRewardEvent", "ChooseRewardRouletteEventModule", "CreateDeliveryDataAndSave", 0, 0xBA4000},
     {"Assembly-CSharp", "AutoChess.MiniEvents.MiniEventModules.ChooseRewardEvent", "ChooseRewardRouletteEventModule", "GetRelevantRouletteLotDataForCategory", 1, 0xBA5590},
-    {"Assembly-CSharp", "", "UserResourcesUtil", "GetAllResourceTypes", 0, 0xBCC820},
-    {"Assembly-CSharp", "", "UserResourcesUtil", "GetResourceName", 1, 0xBCCB00},
+    {"Assembly-CSharp", "", "UserResourcesUtil", "GetAllResourceTypes", 0, 0xBCC980},
+    {"Assembly-CSharp", "", "UserResourcesUtil", "GetResourceName", 1, 0xBCCF80},
     {"Assembly-CSharp", "", "UserResourcesUtil", "GetResourceTypeByString", 1, 0xBCCEB0},
-    {"Assembly-CSharp", "", "UserResourcesUtil", "GetStringByResourceType", 1, 0xBCD090},
+    {"Assembly-CSharp", "", "UserResourcesUtil", "GetStringByResourceType", 1, 0xBCD070},
     {"Assembly-CSharp", "AutoChess.MascotModule", "MascotWindowPresenter", "InitMascotButtons", 0, 0xBD3D70},
     {"Assembly-CSharp", "AutoChess.MascotModule", "MascotWindowPresenter", "OnMascotButtonClicked", 1, 0xBD46F0},
     {"Assembly-CSharp", "AutoChess.MascotModule", "MascotWindow", "OnHidden", 0, 0xBD5A30},
@@ -185,8 +185,8 @@ static MethodFallbackEntry g_methodFallbackTable[173] = {
     {"Assembly-CSharp", "AutoChess.Prefabs.CheatsWindow.Scripts", "CheatsWindow", ".cctor", 0, 0x2BE3CA0},
     {"Assembly-CSharp", "AutoChess.Prefabs.CheatsWindow.Scripts", "CheatsWindow", "get_instance", 0, 0x2BE3F80},
     {"UnityEngine.CoreModule", "UnityEngine", "Debug", "Log", 1, 0x436E7A0},
-    {"UnityEngine.CoreModule", "UnityEngine", "Time", "get_timeScale", 0, 0x43D1D40},
-    {"UnityEngine.CoreModule", "UnityEngine", "Time", "set_timeScale", 1, 0x43D1E70},
+    {"UnityEngine.CoreModule", "UnityEngine", "Time", "get_timeScale", 0, 0x43D8C10},
+    {"UnityEngine.CoreModule", "UnityEngine", "Time", "set_timeScale", 1, 0x43D8D40},
 };
 
 static const size_t g_methodFallbackCount = sizeof(g_methodFallbackTable) / sizeof(g_methodFallbackTable[0]);

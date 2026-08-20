@@ -9,7 +9,11 @@ struct ResourceTypeDumpFeature : Feature {
 
 private:
     bool m_dumped = false;
-    int m_entryCount = 0;
-    void* m_getStringByResourceType = nullptr;
     bool m_resolveFailed = false;
+    int m_entryCount = 0;
+    int m_resolveSource = 0;
+    char m_sourceReason[128] = {};
+    void* m_getAllResourceTypes = nullptr;
+    void* m_getStringByResourceType = nullptr;
+    void* m_getResourceName = nullptr;
 };

@@ -27,10 +27,11 @@ inline std::mutex& Mx() { static std::mutex m; return m; }
 inline FILE*& File() { static FILE* f = nullptr; return f; }
 
 inline void Push(const char* source, const char* fmt, ...) {
+    if (!fmt) return;
     char buf[256];
     va_list ap;
     va_start(ap, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, ap);
+    wvsprintfA(buf, fmt, ap);
     va_end(ap);
     {
         std::lock_guard<std::mutex> lock(Mx());
@@ -50,11 +51,13 @@ inline void Push(const char* source, const char* fmt, ...) {
         File() = f;
     }
     if (f) {
-        SYSTEMTIME wall{};
+        SYSTEMTIME wall;
         GetLocalTime(&wall);
-        fprintf(f, "{\"t\":%llu,\"w\":\"%02u:%02u:%02u.%03u\",\"s\":\"%s\",\"m\":\"%s\"}\n",
-            GetTickCount64(), wall.wHour, wall.wMinute, wall.wSecond, wall.wMilliseconds,
+        char line[512];
+        wsprintfA(line, "{\"t\":%u,\"w\":\"%02u:%02u:%02u.%03u\",\"s\":\"%s\",\"m\":\"%s\"}\n",
+            (unsigned)GetTickCount(), (unsigned)wall.wHour, (unsigned)wall.wMinute, (unsigned)wall.wSecond, (unsigned)wall.wMilliseconds,
             source ? source : "", buf);
+        fputs(line, f);
         fflush(f);
     }
 }

@@ -74,14 +74,15 @@ static const char* FeatureCategory(const char* name) {
     if (strstr(name, "Debug") || strstr(name, "Resolve") || strstr(name, "AntiCheat") ||
         strstr(name, "MonsterDump") || strstr(name, "ResourceDump") ||
         strstr(name, "Tracer") || strstr(name, "NetLog")) return "Debug";
+    if (strstr(name, "DevMode")) return "DevMode";
     if (strstr(name, "Roulette") || strstr(name, "Automation") || strstr(name, "DevMenu")) return "Experimental";
     if (strstr(name, "Profile")) return "Profiles";
     return "Diagnostics";
 }
 
 static const char* SidebarCategory(int index) {
-    static const char* categories[] = {"Combat", "Entity Manager", "Relationships", "Economy", "Debug", "Diagnostics", "Experimental", "Profiles"};
-    return (index >= 0 && index < 8) ? categories[index] : categories[0];
+    static const char* categories[] = {"DevMode", "Combat", "Entity Manager", "Relationships", "Economy", "Debug", "Diagnostics", "Experimental", "Profiles"};
+    return (index >= 0 && index < 9) ? categories[index] : categories[0];
 }
 
 // ============================================================
@@ -167,9 +168,11 @@ static bool InitImGui(IDXGISwapChain* pSwapChain) {
 LRESULT CALLBACK WndProcHook(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     if (ImGui::GetCurrentContext() != nullptr) {
         bool consumed = false;
-        ElGuard("render.wndproc", [&] {
+        __try {
             consumed = ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
-        });
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            consumed = false;
+        }
         if (consumed)
             return 1; // ImGui consumed
     }
@@ -184,142 +187,126 @@ HRESULT STDMETHODCALLTYPE PresentHook(
     UINT SyncInterval,
     UINT Flags
 ) {
-    // Whole overlay body under one SEH guard: a fault anywhere in the ImGui
-    // frame must not take down the game. OriginalPresent stays outside so a
-    // game-side Present failure is not silently swallowed.
-    ElGuard("render.present", [&] {
-    // One-time ImGui init on first successful Present
-    if (!g_imguiInitialized) {
-        g_imguiInitialized = InitImGui(pSwapChain);
-        if (g_imguiInitialized)
-            LOG("[P1] First Present(SyncInterval=%u, Flags=%u)", SyncInterval, Flags);
-    }
-
-    // Draw debug overlay
-    if (g_imguiInitialized && CreateMainRTV(pSwapChain)) {
-        ImGui_ImplDX11_NewFrame();
-        ImGui_ImplWin32_NewFrame();
-        ImGui::NewFrame();
-
-        // Overlay toggle: INSERT key falling edge
-        {
-            bool insertDown = ImGui::IsKeyDown(ImGuiKey_Insert);
-            if (insertDown && !g_insertWasDown) {
-                g_overlayVisible = !g_overlayVisible;
-                LOG("[P1] Overlay %s", g_overlayVisible ? "shown" : "hidden");
-            }
-            g_insertWasDown = insertDown;
+    __try {
+        if (!g_imguiInitialized) {
+            g_imguiInitialized = InitImGui(pSwapChain);
+            if (g_imguiInitialized)
+                LOG("[P1] First Present(SyncInterval=%u, Flags=%u)", SyncInterval, Flags);
         }
 
-        // Panic key: END disables every feature. Flipping `enabled` (instead of
-        // MH_DisableHook) avoids unpatching a trampoline while a game thread is
-        // executing inside it; each feature hook already passthroughs when off.
-        {
-            bool endDown = ImGui::IsKeyDown(ImGuiKey_End);
-            if (endDown && !g_endWasDown && g_featuresReady) {
-                for (auto* f : g_features) f->enabled = false;
-                LOG("[P1] PANIC: all features disabled (END)");
-            }
-            g_endWasDown = endDown;
-        }
+        if (g_imguiInitialized && CreateMainRTV(pSwapChain)) {
+            ImGui_ImplDX11_NewFrame();
+            ImGui_ImplWin32_NewFrame();
+            ImGui::NewFrame();
 
-        if (g_overlayVisible) {
-            ImGui::SetNextWindowSize(ImVec2(1100, 760), ImGuiCond_FirstUseEver);
-            ImGui::Begin("EL_Native Debug");
-            ImGui::Text("EL_Native v0.1");
-            ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
-
-            // Sidebar feature view.  The feature objects remain the source of
-            // truth; only the selected category is rendered at a time.
-            if (g_featuresReady && !g_features.empty()) {
-                ImGui::Separator();
-                ImGui::InputText("Search", g_featureSearch, sizeof(g_featureSearch));
-                const float panelHeight = (ImGui::GetContentRegionAvail().y > 120.0f)
-                    ? ImGui::GetContentRegionAvail().y - 4.0f : 120.0f;
-                ImGui::BeginChild("sidebar", ImVec2(175, panelHeight), true);
-                for (int i = 0; i < 8; ++i) {
-                    if (ImGui::Selectable(SidebarCategory(i), g_sidebarCategory == i)) g_sidebarCategory = i;
+            {
+                bool insertDown = ImGui::IsKeyDown(ImGuiKey_Insert);
+                if (insertDown && !g_insertWasDown) {
+                    g_overlayVisible = !g_overlayVisible;
+                    LOG("[P1] Overlay %s", g_overlayVisible ? "shown" : "hidden");
                 }
-                ImGui::EndChild();
-                ImGui::SameLine();
-                ImGui::BeginChild("feature_panel", ImVec2(0, panelHeight), true);
-                const char* category = SidebarCategory(g_sidebarCategory);
-                if (strcmp(category, "Profiles") == 0) {
-                    ProfileUiRender();
-                } else if (strcmp(category, "Debug") == 0) {
-                    ImGui::SeparatorText("Resolve Method");
-                    ImGui::TextWrapped("Resolver status is collected here so the other tabs stay focused on their feature controls.");
-                    int count = GetResolveLogCount();
-                    if (count == 0) {
-                        ImGui::Text("No resolves yet");
-                    } else {
-                        static const char* labels[] = { "API", "fallback", "FAIL", "cache" };
-                        ImGui::Columns(3, "resolve_cols", false);
-                        ImGui::Text("Method"); ImGui::NextColumn();
-                        ImGui::Text("Ptr");    ImGui::NextColumn();
-                        ImGui::Text("Src");    ImGui::NextColumn();
-                        ImGui::Separator();
-                        for (int i = 0; i < count; i++) {
-                            const ResolveEntry* e = GetResolveLogEntry(i);
-                            if (!e) continue;
-                            ImGui::Text("%s", e->name);   ImGui::NextColumn();
-                            ImGui::Text("0x%llX", e->ptr); ImGui::NextColumn();
-                            int src = e->source;
-                            ImGui::Text("%s", (src >= 0 && src < 4) ? labels[src] : "?");
-                            ImGui::NextColumn();
+                g_insertWasDown = insertDown;
+            }
+
+            {
+                bool endDown = ImGui::IsKeyDown(ImGuiKey_End);
+                if (endDown && !g_endWasDown && g_featuresReady) {
+                    for (auto* f : g_features) f->enabled = false;
+                    LOG("[P1] PANIC: all features disabled (END)");
+                }
+                g_endWasDown = endDown;
+            }
+
+            if (g_overlayVisible) {
+                ImGui::SetNextWindowSize(ImVec2(1100, 760), ImGuiCond_FirstUseEver);
+                ImGui::Begin("EL_Native Debug");
+                ImGui::Text("EL_Native v0.1");
+                ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+
+                if (g_featuresReady && !g_features.empty()) {
+                    ImGui::Separator();
+                    ImGui::InputText("Search", g_featureSearch, sizeof(g_featureSearch));
+                    const float panelHeight = (ImGui::GetContentRegionAvail().y > 120.0f)
+                        ? ImGui::GetContentRegionAvail().y - 4.0f : 120.0f;
+                    ImGui::BeginChild("sidebar", ImVec2(175, panelHeight), true);
+                    for (int i = 0; i < 9; ++i) {
+                        if (ImGui::Selectable(SidebarCategory(i), g_sidebarCategory == i)) g_sidebarCategory = i;
+                    }
+                    ImGui::EndChild();
+                    ImGui::SameLine();
+                    ImGui::BeginChild("feature_panel", ImVec2(0, panelHeight), true);
+                    const char* category = SidebarCategory(g_sidebarCategory);
+                    if (strcmp(category, "Profiles") == 0) {
+                        ProfileUiRender();
+                    } else if (strcmp(category, "Debug") == 0) {
+                        ImGui::SeparatorText("Resolve Method");
+                        ImGui::TextWrapped("Resolver status is collected here so the other tabs stay focused on their feature controls.");
+                        int count = GetResolveLogCount();
+                        if (count == 0) {
+                            ImGui::Text("No resolves yet");
+                        } else {
+                            static const char* labels[] = { "API", "fallback", "FAIL", "cache" };
+                            ImGui::Columns(3, "resolve_cols", false);
+                            ImGui::Text("Method"); ImGui::NextColumn();
+                            ImGui::Text("Ptr");    ImGui::NextColumn();
+                            ImGui::Text("Src");    ImGui::NextColumn();
+                            ImGui::Separator();
+                            for (int i = 0; i < count; i++) {
+                                const ResolveEntry* e = GetResolveLogEntry(i);
+                                if (!e) continue;
+                                ImGui::Text("%s", e->name);   ImGui::NextColumn();
+                                ImGui::Text("0x%llX", e->ptr); ImGui::NextColumn();
+                                int src = e->source;
+                                ImGui::Text("%s", (src >= 0 && src < 4) ? labels[src] : "?");
+                                ImGui::NextColumn();
+                            }
+                            ImGui::Columns(1);
                         }
-                        ImGui::Columns(1);
+                        ImGui::SeparatorText("Debug features");
+                        for (auto* f : g_features) {
+                            if (strcmp(FeatureCategory(f->name), category) != 0) continue;
+                            if (g_featureSearch[0] && strstr(f->name, g_featureSearch) == nullptr) continue;
+                            if (ImGui::Checkbox(f->name, &f->enabled)) ConfigMarkDirty();
+                            ImGui::SameLine();
+                            RenderFeatureMenuSafe(f);
+                        }
+                    } else {
+                        for (auto* f : g_features) {
+                            if (strcmp(FeatureCategory(f->name), category) != 0) continue;
+                            if (g_featureSearch[0] && strstr(f->name, g_featureSearch) == nullptr) continue;
+                            if (ImGui::Checkbox(f->name, &f->enabled)) ConfigMarkDirty();
+                            ImGui::SameLine();
+                            RenderFeatureMenuSafe(f);
+                        }
                     }
-                    ImGui::SeparatorText("Debug features");
-                    for (auto* f : g_features) {
-                        if (strcmp(FeatureCategory(f->name), category) != 0) continue;
-                        if (g_featureSearch[0] && strstr(f->name, g_featureSearch) == nullptr) continue;
-                        if (ImGui::Checkbox(f->name, &f->enabled)) ConfigMarkDirty();
-                        ImGui::SameLine();
-                        RenderFeatureMenuSafe(f);
-                    }
-                } else {
-                    for (auto* f : g_features) {
-                        if (strcmp(FeatureCategory(f->name), category) != 0) continue;
-                        if (g_featureSearch[0] && strstr(f->name, g_featureSearch) == nullptr) continue;
-                        if (ImGui::Checkbox(f->name, &f->enabled)) ConfigMarkDirty();
-                        ImGui::SameLine();
-                        RenderFeatureMenuSafe(f);
-                    }
+                    ImGui::EndChild();
                 }
-                ImGui::EndChild();
+
+                ImGui::End();
             }
 
-            ImGui::End();
+            if (g_featuresReady) {
+                for (auto* f : g_features) {
+                    if (f && f->enabled) {
+                        __try { f->OnOverlay(); } __except (EXCEPTION_EXECUTE_HANDLER) {}
+                    }
+                }
+            }
+
+            ImGui::Render();
+            g_pd3dDeviceContext->OMSetRenderTargets(1, &g_mainRTV, nullptr);
+            ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
         }
 
-        // Feature HUD mini-windows (Chest-Indicator style): drawn even when
-        // the main debug overlay is hidden, so roulette/proxy state stays on
-        // screen during play.  Each enabled feature owns its own ImGui window.
         if (g_featuresReady) {
             for (auto* f : g_features) {
-                if (f && f->enabled) {
-                    ElGuard(f->name ? f->name : "feature", [&] { f->OnOverlay(); });
-                }
+                if (!f) continue;
+                __try { f->OnUpdate(); } __except (EXCEPTION_EXECUTE_HANDLER) {}
             }
+            ConfigAutosaveTick();
         }
-
-        ImGui::Render();
-        g_pd3dDeviceContext->OMSetRenderTargets(1, &g_mainRTV, nullptr);
-        ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
     }
-
-    // Fire feature OnUpdate each frame (features use one-shot flags internally).
-    // Isolate per-feature: one faulting OnUpdate must not crash the game, and
-    // the log names the culprit instead of a bare exception dialog.
-    if (g_featuresReady) {
-        for (auto* f : g_features) {
-            if (!f) continue;
-            ElGuard(f->name ? f->name : "feature", [&] { f->OnUpdate(); });
-        }
-        ConfigAutosaveTick();
-    }
-    }); // ElGuard render.present
 
     return OriginalPresent(pSwapChain, SyncInterval, Flags);
 }

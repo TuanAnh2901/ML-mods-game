@@ -74,40 +74,12 @@ static void __fastcall Hook(void* inst, int32_t t, int32_t d, void* ud, void* mi
 CurrencyFeature::CurrencyFeature() { name = "Currency"; enabled = false; }
 
 void CurrencyFeature::Init() {
-    void* fn = ResolveMethodOrFallback("Assembly-CSharp",
-        "AutoChess.DataClasses.UserData", "ItemModule", "ChangeResource", 3);
-    if (fn && MH_CreateHook(fn, &Hook, (LPVOID*)&Original_ChangeResource) == MH_OK && MH_EnableHook(fn) == MH_OK)
-        LOG("[FEATURE] Currency: hooked @ %p (monitor only)", fn);
-    else
-        LOG("[FEATURE] Currency: hook fail");
 }
 
 void CurrencyFeature::OnUpdate() {}
 
 void CurrencyFeature::OnMenu() {
-    if (!enabled) return;
-    if (!Original_ChangeResource) { ImGui::Text("hook unavailable"); return; }
-
-    ImGui::Text("Resource monitor (ChangeResource events)");
-    ImGui::Separator();
-
-    if (s_count > 0) {
-        for (int i = 0; i < s_count; ++i) {
-            int32_t t = s_types[i];
-            const char* n = ResourceName(t);
-            ImGui::Text("  [%2d] %-12s = %+d", t, n, s_bals[i]);
-        }
-    }
-    if (s_rcnt > 0) {
-        char b[256] = {0}; int o = 0;
-        int s = s_ridx - s_rcnt; if (s < 0) s += 16;
-        for (int i = 0; i < s_rcnt && o < 240; ++i) {
-            int x = (s + i) % 16;
-            o += snprintf(b+o, sizeof(b)-o, "%s[%d]:%+d ",
-                ResourceName(s_rec[x].t), s_rec[x].t, s_rec[x].d);
-        }
-        ImGui::Text("Recent: %s", b);
-    }
+    ImGui::Text("Currency monitor currently disabled.");
 }
 
 static CurrencyFeature g_c;

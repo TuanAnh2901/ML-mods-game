@@ -30,7 +30,10 @@ static bool LoadIniConfig() {
         if (!eq) continue;
         *eq = '\0';
         for (auto* feature : g_features) {
-            if (strcmp(feature->name, line) == 0) feature->enabled = (strcmp(eq + 1, "1") == 0);
+            if (strcmp(feature->name, line) == 0) {
+                if (strcmp(feature->name, "ResourceDump") == 0) feature->enabled = false;
+                else feature->enabled = (strcmp(eq + 1, "1") == 0);
+            }
         }
         GlobalConfigRegistry().Set(line, eq + 1);
     }
@@ -42,6 +45,10 @@ void ConfigApplyProfileDocument(const ProfileDocument& document) {
     auto current = document.profiles.find(document.currentProfile);
     if (current == document.profiles.end()) return;
     for (auto* feature : g_features) {
+        if (strcmp(feature->name, "ResourceDump") == 0) {
+            feature->enabled = false;
+            continue;
+        }
         auto flag = current->second.enabled.find(feature->name);
         if (flag != current->second.enabled.end()) feature->enabled = flag->second;
     }
@@ -81,6 +88,10 @@ void ConfigLoad() {
         // Match feature by name
         for (auto* f : g_features) {
             if (strcmp(f->name, key) == 0) {
+                if (strcmp(f->name, "ResourceDump") == 0) {
+                    f->enabled = false; // Never auto-enable ResourceDump probe on startup
+                    break;
+                }
                 f->enabled = (strcmp(val, "1") == 0);
                 LOG("[P1] Config: %s = %d", f->name, f->enabled);
                 break;
